@@ -19,7 +19,18 @@ exclude = [
     'dist',
     'tests',
 ]
-ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = [
+  "numpy.*",
+  "sklearn.*",
+]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# source: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    'ignore:function ham\(\) is deprecated:DeprecationWarning',
+]
