@@ -3,10 +3,10 @@ from numbers import Number
 from typing import Literal, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 from sklearn import metrics
 from sklearn.utils import check_array, check_consistent_length
 
-from . import _compute
 
 NumericSequence = Sequence[Number]
 
@@ -45,12 +45,40 @@ def non_zero_std(func: callable) -> callable:
     return wrapper
 
 
-@validate_params
-@non_zero_std
+def assemble_multioutput(func: callable) -> callable:
+    """
+    Assembles metrics for different multioutput aggregation modes.
+
+    Supports three modes:
+        - 'raw_values' returns a full set of scores in case of multioutput input.
+        - 'uniform_average' scores of all outputs are averaged with uniform weight.
+        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
+    """
+
+    def wrapper(
+        y_true: NDArray,
+        y_pred: NDArray,
+        multioutput: Literal["raw_values", "uniform_average", "dimension_average"],
+        *args,
+        **kwargs,
+    ) -> Number | NumericSequence:
+        if multioutput == "uniform_average":
+            y_true = y_true.flatten()
+            y_pred = y_pred.flatten()
+
+        errors = func(y_true, y_pred, *args, **kwargs)
+        if multioutput == "dimension_average":
+            errors = np.mean(errors)
+
+        return errors.item() if errors.size == 1 else errors
+
+    return wrapper
+
+
 def normalized_mean_squared_error(
     y_true: NumericSequence,
     y_pred: NumericSequence,
-    multioutput: Literal["raw_values", "uniform_average"] = "raw_values",
+    multioutput: Literal["raw_values", "uniform_average", "dimension_average"] = "raw_values",
 ) -> Number:
     """
     Computes MSE normalized by standard deviation of ground truth values.
@@ -61,18 +89,23 @@ def normalized_mean_squared_error(
                         Can be one of the following strings (default is 'raw_values'):
                         - 'raw_values' returns a full set of scores in case of multioutput input.
                         - 'uniform_average' scores of all outputs are averaged with uniform weight.
+                        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
 
     :return: normalized mean squared error as single numeric value or array of values for multivariate case
     """
-    return _compute.nmse(y_true=y_true, y_pred=y_pred, multioutput=multioutput)  # type: ignore
+    @validate_params
+    @non_zero_std
+    @assemble_multioutput
+    def compute(y_true: NDArray, y_pred: NDArray) -> Number:
+        return metrics.mean_squared_error(y_true, y_pred, multioutput="raw_values") / np.std(y_true, axis=0)
+
+    return compute(y_true, y_pred, multioutput=multioutput)  # multioutput parameter is handled by wrapper
 
 
-@validate_params
-@non_zero_std
-def normalized_root_mean_square_error(
+def normalized_root_mean_squared_error(
     y_true: NumericSequence,
     y_pred: NumericSequence,
-    multioutput: Literal["raw_values", "uniform_average"] = "raw_values",
+    multioutput: Literal["raw_values", "uniform_average", "dimension_average"] = "raw_values",
 ) -> Number:
     """
     Computes RMSE normalized by standard deviation of ground truth values.
@@ -83,14 +116,21 @@ def normalized_root_mean_square_error(
                         Can be one of the following strings (default is 'raw_values'):
                         - 'raw_values' returns a full set of scores in case of multioutput input.
                         - 'uniform_average' scores of all outputs are averaged with uniform weight.
+                        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
 
     :return: normalized root mean squared error as single numeric value or array of values for multivariate case
     """
-    return _compute.nrmse(y_true=y_true, y_pred=y_pred, multioutput=multioutput)  # type: ignore
+
+    @validate_params
+    @non_zero_std
+    @assemble_multioutput
+    def compute(y_true: NDArray, y_pred: NDArray) -> Number:
+        errors = metrics.mean_squared_error(y_true, y_pred, multioutput="raw_values", squared=False)
+        return errors / np.std(y_true, axis=0)
+
+    return compute(y_true, y_pred, multioutput=multioutput)  # multioutput parameter is handled by wrapper
 
 
-@validate_params
-@non_zero_std
 def normalized_mean_absolute_error(
     y_true: NumericSequence,
     y_pred: NumericSequence,
@@ -105,10 +145,18 @@ def normalized_mean_absolute_error(
                         Can be one of the following strings (default is 'raw_values'):
                         - 'raw_values' returns a full set of scores in case of multioutput input.
                         - 'uniform_average' scores of all outputs are averaged with uniform weight.
+                        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
 
     :return: normalized mean absolute error as single numeric value or array of values for multivariate case
     """
-    return _compute.nmae(y_true=y_true, y_pred=y_pred, multioutput=multioutput)  # type: ignore
+
+    @validate_params
+    @non_zero_std
+    @assemble_multioutput
+    def compute(y_true: NDArray, y_pred: NDArray) -> Number:
+        return metrics.mean_absolute_error(y_true, y_pred, multioutput="raw_values") / np.std(y_true, axis=0)
+
+    return compute(y_true, y_pred, multioutput=multioutput)  # multioutput parameter is handled by wrapper
 
 
 @validate_params
@@ -125,22 +173,22 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
     multioutput = "uniform_average"
 
     return {
-        "MSE": metrics.mean_squared_error(y_true, y_pred, multioutput=multioutput),
-        "RMSE": metrics.mean_squared_error(y_true, y_pred, squared=False, multioutput=multioutput),
-        "MAE": metrics.mean_absolute_error(y_true, y_pred, multioutput=multioutput),
-        "MAX": metrics.max_error(y_true, y_pred),
+        "mean_squared_error": metrics.mean_squared_error(y_true, y_pred, multioutput=multioutput),
+        "root_mean_squared_error": metrics.mean_squared_error(y_true, y_pred, squared=False, multioutput=multioutput),
+        "mean_absolute_error": metrics.mean_absolute_error(y_true, y_pred, multioutput=multioutput),
+        "max_error": metrics.max_error(y_true, y_pred),
         # sequences are cast to arrays in `validate_params` wrapper
-        "NMSE": _compute.nmse(y_true, y_pred, multioutput=multioutput),  # type: ignore
-        "NRMSE": _compute.nrmse(y_true, y_pred, multioutput=multioutput),  # type: ignore
-        "NMAE": _compute.nmae(y_true, y_pred, multioutput=multioutput),  # type: ignore
+        "normalized_mean_squared_error": normalized_mean_squared_error(y_true, y_pred, multioutput=multioutput),
+        "normalized_root_mean_squared_error": normalized_root_mean_squared_error(y_true, y_pred, multioutput=multioutput),
+        "normalized_mean_absolute_error": normalized_mean_absolute_error(y_true, y_pred, multioutput=multioutput),
         # max error is dimension independent, so normalized max error it is just computed simply as max / std
-        "NMAX": metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true, axis=0),  # type: ignore
-        "R2": metrics.r2_score(y_true, y_pred),  # type: ignore
-        "TRUE_MEAN": np.mean(y_true),
-        "PRED_MEAN": np.mean(y_pred),
-        "TRUE_STD": np.std(y_true),
-        "PRED_STD": np.std(y_pred),
-    }
+        "normalized_max_error": metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true, axis=0),
+        "r2": metrics.r2_score(y_true, y_pred),  # type: ignore
+        "true_mean": np.mean(y_true),
+        "pred_mean": np.mean(y_pred),
+        "true_std": np.std(y_true),
+        "pred_std": np.std(y_pred),
+    }  # type: ignore
 
 
 @validate_params
@@ -150,62 +198,58 @@ def regression_report(
     y_pred: NumericSequence,
     *,
     precision: int = 4,
-    use_percentage: bool = False,
 ) -> str:
     """
     Returns detailed regression report as string similar to classification report from sklearn.
 
     :param y_true: sequence of ground truth values for regression problem
     :param y_pred: sequence of values predicted by the model
-    :param precision: keyword only, precision to which metrics are expressed, defaults to 4
-    :param width: keyword only, spacing between columns, defaults to 32,
-                  too small values might results in unreadable table
-    :param use_percentage: if True print normalized values in %
+    :param precision: precision to which metrics are expressed, defaults to 4
 
     :return: regression metrics and data statistics as single string
     """
     computed_metrics = regression_metrics(y_true=y_true, y_pred=y_pred)  # type: ignore
-    precision_marker = "%" if use_percentage else "f"
 
-    width = 16
+    header_width = 32  # distance from left to first column in chars
+    header_offset = 2 if precision <= 4 else 0  # just to make it look nicer
+    column_width = 12  # distance between columns in chars, will break if precision > 10
 
-    # TODO: Match sklearn classification report style (lower-case full names)
     report = ""
     # add report header
-    report += f"{'':<{width}}{'ABS':<{width}}{'NORM':<{width}}\n"
+    report += f"{'':<{header_width - header_offset}}{'absolute':<{column_width}}{'normalized':<{column_width}}\n"
     # add metrics
     report += (
-        f"{'MSE:':<{width}}"
-        f"{computed_metrics['MSE']:<{width}.{precision}f}"
-        f"{computed_metrics['NMSE']:<{width}.{precision}{precision_marker}}\n"
+        f"{'mean_squared_error:':<{header_width}}"
+        f"{computed_metrics['mean_squared_error']:<{column_width}.{precision}f}"
+        f"{computed_metrics['normalized_mean_squared_error']:<{column_width}.{precision}f}\n"
     )
 
     report += (
-        f"{'RMSE:':<{width}}"
-        f"{computed_metrics['RMSE']:<{width}.{precision}f}"
-        f"{computed_metrics['NRMSE']:<{width}.{precision}{precision_marker}}\n"
+        f"{'root_mean_squared_error:':<{header_width}}"
+        f"{computed_metrics['root_mean_squared_error']:<{column_width}.{precision}f}"
+        f"{computed_metrics['normalized_root_mean_squared_error']:<{column_width}.{precision}f}\n"
     )
 
     report += (
-        f"{'MAE:':<{width}}"
-        f"{computed_metrics['MAE']:<{width}.{precision}f}"
-        f"{computed_metrics['NMAE']:<{width}.{precision}{precision_marker}}\n"
+        f"{'mean_absolute_error:':<{header_width}}"
+        f"{computed_metrics['mean_absolute_error']:<{column_width}.{precision}f}"
+        f"{computed_metrics['normalized_mean_absolute_error']:<{column_width}.{precision}f}\n"
     )
 
     report += (
-        f"{'MAXE:':<{width}}"
-        f"{computed_metrics['MAX']:<{width}.{precision}f}"
-        f"{computed_metrics['NMAX']:<{width}.{precision}{precision_marker}}\n"
+        f"{'max_error:':<{header_width}}"
+        f"{computed_metrics['max_error']:<{column_width}.{precision}f}"
+        f"{computed_metrics['normalized_max_error']:<{column_width}.{precision}f}\n"
     )
     # add single column for R2 score
-    report += f"{'R2':<{width}}{'':<{width}}{computed_metrics['R2']:<{width}.{precision}f}\n"
+    report += f"{'r2':<{header_width}}{'':<{column_width}}{computed_metrics['r2']:<{column_width}.{precision}f}\n"
     report += "\n\n"
     # add empty row for some space
-    report += f"{'':<{width}}{'TRUE':<{width}}{'PRED':<{width}}\n"
+    report += f"{'':<{header_width}}{'true':<{column_width}}{'pred':<{column_width}}\n"
     # add true and predicted distribution statistics
-    report += f"{'MEAN:':<{width}}{computed_metrics['TRUE_MEAN']:<{width}.{precision}f}"
-    report += f"{computed_metrics['PRED_MEAN']:<{width}.{precision}f}\n"
-    report += f"{'STD:':<{width}}{computed_metrics['TRUE_STD']:<{width}.{precision}f}"
-    report += f"{computed_metrics['PRED_STD']:<{width}.{precision}f}\n"
+    report += f"{'mean:':<{header_width}}{computed_metrics['true_mean']:<{column_width}.{precision}f}"
+    report += f"{computed_metrics['pred_mean']:<{column_width}.{precision}f}\n"
+    report += f"{'std:':<{header_width}}{computed_metrics['true_std']:<{column_width}.{precision}f}"
+    report += f"{computed_metrics['pred_std']:<{column_width}.{precision}f}\n"
 
     return report
