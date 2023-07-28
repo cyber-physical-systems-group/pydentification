@@ -128,7 +128,7 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
         "MSE": metrics.mean_squared_error(y_true, y_pred, multioutput=multioutput),
         "RMSE": metrics.mean_squared_error(y_true, y_pred, squared=False, multioutput=multioutput),
         "MAE": metrics.mean_absolute_error(y_true, y_pred, multioutput=multioutput),
-        "MAX": metrics.max_error(y_true, y_pred, multioutput=multioutput),
+        "MAX": metrics.max_error(y_true, y_pred),
         # sequences are cast to arrays in `validate_params` wrapper
         "NMSE": _compute.nmse(y_true, y_pred, multioutput=multioutput),  # type: ignore
         "NRMSE": _compute.nrmse(y_true, y_pred, multioutput=multioutput),  # type: ignore
@@ -150,7 +150,6 @@ def regression_report(
     y_pred: NumericSequence,
     *,
     precision: int = 4,
-    width: int = 32,
     use_percentage: bool = False,
 ) -> str:
     """
@@ -168,30 +167,33 @@ def regression_report(
     computed_metrics = regression_metrics(y_true=y_true, y_pred=y_pred)  # type: ignore
     precision_marker = "%" if use_percentage else "f"
 
+    width = 16
+
+    # TODO: Match sklearn classification report style (lower-case full names)
     report = ""
     # add report header
-    report += f"{'':<{width}}{'Absolute':<{width}}{'Normalized':<{width}}\n"
+    report += f"{'':<{width}}{'ABS':<{width}}{'NORM':<{width}}\n"
     # add metrics
     report += (
-        f"{'Mean Squared Error:':<{width}}"
+        f"{'MSE:':<{width}}"
         f"{computed_metrics['MSE']:<{width}.{precision}f}"
         f"{computed_metrics['NMSE']:<{width}.{precision}{precision_marker}}\n"
     )
 
     report += (
-        f"{'Root Mean Squared Error:':<{width}}"
+        f"{'RMSE:':<{width}}"
         f"{computed_metrics['RMSE']:<{width}.{precision}f}"
         f"{computed_metrics['NRMSE']:<{width}.{precision}{precision_marker}}\n"
     )
 
     report += (
-        f"{'Mean Absolute Error:':<{width}}"
+        f"{'MAE:':<{width}}"
         f"{computed_metrics['MAE']:<{width}.{precision}f}"
         f"{computed_metrics['NMAE']:<{width}.{precision}{precision_marker}}\n"
     )
 
     report += (
-        f"{'Max Error:':<{width}}"
+        f"{'MAXE:':<{width}}"
         f"{computed_metrics['MAX']:<{width}.{precision}f}"
         f"{computed_metrics['NMAX']:<{width}.{precision}{precision_marker}}\n"
     )
@@ -199,11 +201,11 @@ def regression_report(
     report += f"{'R2':<{width}}{'':<{width}}{computed_metrics['R2']:<{width}.{precision}f}\n"
     report += "\n\n"
     # add empty row for some space
-    report += f"{'':<{width}}{'True':<{width}}{'Predicted':<{width}}\n"
+    report += f"{'':<{width}}{'TRUE':<{width}}{'PRED':<{width}}\n"
     # add true and predicted distribution statistics
-    report += f"{'Mean:':<{width}}{computed_metrics['TRUE_MEAN']:<{width}.{precision}f}"
+    report += f"{'MEAN:':<{width}}{computed_metrics['TRUE_MEAN']:<{width}.{precision}f}"
     report += f"{computed_metrics['PRED_MEAN']:<{width}.{precision}f}\n"
-    report += f"{'std:':<{width}}{computed_metrics['TRUE_STD']:<{width}.{precision}f}"
+    report += f"{'STD:':<{width}}{computed_metrics['TRUE_STD']:<{width}.{precision}f}"
     report += f"{computed_metrics['PRED_STD']:<{width}.{precision}f}\n"
 
     return report
