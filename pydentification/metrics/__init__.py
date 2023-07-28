@@ -1,7 +1,7 @@
 from .regression import (
     normalized_mean_absolute_error,
     normalized_mean_squared_error,
-    normalized_root_mean_square_error,
+    normalized_root_mean_squared_error,
     regression_metrics,
     regression_report,
 )
@@ -9,7 +9,7 @@ from .regression import (
 # only allow importing metric functions
 __all__ = [
     "normalized_mean_squared_error",
-    "normalized_root_mean_square_error",
+    "normalized_root_mean_squared_error",
     "normalized_mean_absolute_error",
     "regression_metrics",
     "regression_report",
