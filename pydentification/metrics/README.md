@@ -15,15 +15,15 @@ print(regression_report(y_true=example_y_true, y_pred=example_y_pred, precision=
 ```
 
 ```text
-                                Absolute                        Normalized                      
-Mean Squared Error:             0.20                            1.45                            
-Root Mean Squared Error:        0.44                            0.89                            
-Mean Absolute Error:            0.36                            1.45                            
-Max Error:                      0.89                            3.57                            
-R2                                                              -2.19                           
+                ABS             NORM            
+MSE:            0.26            0.99            
+RMSE:           0.51            1.94            
+MAE:            0.40            1.52            
+MAXE:           0.92            3.48            
+R2                              -2.75           
 
 
-                                True                            Predicted                       
-Mean:                           0.61                            0.42                            
-std:                            0.25                            0.25    
+                TRUE            PRED            
+MEAN:           0.58            0.46            
+STD:            0.27            0.24              
 ```
