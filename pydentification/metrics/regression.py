@@ -1,6 +1,6 @@
 import warnings
 from numbers import Number
-from typing import Literal, Sequence
+from typing import Callable, Literal, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,9 +9,10 @@ from sklearn.utils import check_array, check_consistent_length
 
 
 NumericSequence = Sequence[Number]
+MetricCallable = Callable[[NumericSequence, NumericSequence], Number]
 
 
-def validate_params(func: callable) -> callable:
+def validate_params(func: MetricCallable) -> MetricCallable:
     """
     Wrapper validating input parameters by checking array type type and length consistency
     Shorthand for sklearn `validate_param` with default values used in this module
@@ -21,12 +22,12 @@ def validate_params(func: callable) -> callable:
         y_true = check_array(y_true, ensure_2d=False)
         y_pred = check_array(y_pred, ensure_2d=False)
         check_consistent_length(y_true, y_pred)
-        return func(y_true, y_pred, *args, **kwargs)
+        return func(y_true, y_pred, *args, **kwargs)  # type: ignore
 
     return wrapper
 
 
-def non_zero_std(func: callable) -> callable:
+def non_zero_std(func: MetricCallable) -> MetricCallable:
     """
     Wrapper checking if y_true does not have zero standard deviation.
     Returns NaN if yes and runs metric computation normally otherwise
@@ -40,12 +41,12 @@ def non_zero_std(func: callable) -> callable:
                 "Returning nan instead."
             )
             return float("nan")
-        return func(y_true, y_pred, *args, **kwargs)
+        return func(y_true, y_pred, *args, **kwargs)  # type: ignore
 
     return wrapper
 
 
-def assemble_multioutput(func: callable) -> callable:
+def assemble_multioutput(func: MetricCallable) -> MetricCallable:
     """
     Assembles metrics for different multioutput aggregation modes.
 
@@ -61,18 +62,18 @@ def assemble_multioutput(func: callable) -> callable:
         multioutput: Literal["raw_values", "uniform_average", "dimension_average"],
         *args,
         **kwargs,
-    ) -> Number | NumericSequence:
+    ) -> Number | NDArray:
         if multioutput == "uniform_average":
             y_true = y_true.flatten()
             y_pred = y_pred.flatten()
 
-        errors = func(y_true, y_pred, *args, **kwargs)
+        errors: NDArray = func(y_true, y_pred, *args, **kwargs)  # type: ignore
         if multioutput == "dimension_average":
             errors = np.mean(errors)
 
         return errors.item() if errors.size == 1 else errors
 
-    return wrapper
+    return wrapper  # type: ignore
 
 
 def normalized_mean_squared_error(
@@ -161,6 +162,10 @@ def normalized_mean_absolute_error(
 
 @validate_params
 @non_zero_std
+def normalized_max_error(y_true: NumericSequence, y_pred: NumericSequence) -> Number:
+    return metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true, axis=0)  # type: ignore
+
+
 def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict[str, float]:
     """
     Computes multiple regression scores and returns a dictionary with results.
@@ -191,8 +196,6 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
     }  # type: ignore
 
 
-@validate_params
-@non_zero_std
 def regression_report(
     y_true: NumericSequence,
     y_pred: NumericSequence,
