@@ -73,7 +73,7 @@ from pydentification.metrics.regression import NumericSequence
 def test_normalized_mean_squared_error(
     y_true: NumericSequence, y_pred: NumericSequence, multioutput: str, expected: Number
 ):
-    error = pyidentification_metrics.normalized_mean_squared_error(y_true, y_pred, multioutput=multioutput)  # type: ignore
+    error = pyidentification_metrics.normalized_mean_squared_error(y_true, y_pred, multioutput=multioutput)
     np.testing.assert_array_equal(error, expected)
 
 
@@ -128,21 +128,20 @@ def test_normalized_mean_squared_error(
             "dimension_average",
             0.0,
         ),
-
         # 3D case with uniform average
         (
             np.asarray([[1, 5], [0, 1], [0, 1]]).T,
             np.asarray([[1, 5], [1, 1], [1, 2]]).T,
             "dimension_average",
             # errors are 0, 2 and sqrt(2) for each dimension
-            (2 + math.sqrt(2)) / 3
+            (2 + math.sqrt(2)) / 3,
         ),
     ],
 )
 def test_normalized_root_mean_squared_error(
     y_true: NumericSequence, y_pred: NumericSequence, multioutput: str, expected: Number
 ):
-    error = pyidentification_metrics.normalized_root_mean_squared_error(y_true, y_pred, multioutput=multioutput)  # type: ignore
+    error = pyidentification_metrics.normalized_root_mean_squared_error(y_true, y_pred, multioutput=multioutput)
     np.testing.assert_array_equal(error, expected)
 
 
@@ -195,7 +194,7 @@ def test_normalized_root_mean_squared_error(
 def test_normalized_mean_absolute_error(
     y_true: NumericSequence, y_pred: NumericSequence, multioutput: str, expected: Number
 ):
-    error = pyidentification_metrics.normalized_mean_absolute_error(y_true, y_pred, multioutput=multioutput)  # type: ignore
+    error = pyidentification_metrics.normalized_mean_absolute_error(y_true, y_pred, multioutput=multioutput)
     np.testing.assert_array_equal(error, expected)
 
 
@@ -205,8 +204,7 @@ def test_normalized_mean_absolute_error(
         [pyidentification_metrics.normalized_mean_squared_error],
         [pyidentification_metrics.normalized_root_mean_squared_error],
         [pyidentification_metrics.normalized_mean_absolute_error],
-        [pyidentification_metrics.regression_report],
-        [pyidentification_metrics.regression_metrics],
+        [pyidentification_metrics.normalized_max_error],
     ),
 )
 def test_zero_std_is_nan(metric_func: callable):

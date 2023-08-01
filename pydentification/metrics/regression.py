@@ -7,7 +7,6 @@ from numpy.typing import NDArray
 from sklearn import metrics
 from sklearn.utils import check_array, check_consistent_length
 
-
 NumericSequence = Sequence[Number]
 MetricCallable = Callable[[NumericSequence, NumericSequence], Number]
 
@@ -94,6 +93,7 @@ def normalized_mean_squared_error(
 
     :return: normalized mean squared error as single numeric value or array of values for multivariate case
     """
+
     @validate_params
     @non_zero_std
     @assemble_multioutput
@@ -135,7 +135,7 @@ def normalized_root_mean_squared_error(
 def normalized_mean_absolute_error(
     y_true: NumericSequence,
     y_pred: NumericSequence,
-    multioutput: Literal["raw_values", "uniform_average"] = "raw_values",
+    multioutput: Literal["raw_values", "uniform_average", "dimension_average"] = "raw_values",
 ) -> Number:
     """
     Computes MAE normalized by standard deviation of ground truth values.
@@ -162,10 +162,24 @@ def normalized_mean_absolute_error(
 
 @validate_params
 @non_zero_std
-def normalized_max_error(y_true: NumericSequence, y_pred: NumericSequence) -> Number:
-    return metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true, axis=0)  # type: ignore
+def normalized_max_error(
+    y_true: NumericSequence,
+    y_pred: NumericSequence,
+) -> Number:
+    """
+    Computes MAE normalized by standard deviation of ground truth values.
+
+    :param y_true: array-like of shape (n_samples,) or (n_samples, n_outputs) with  ground truth (correct) target values
+    :param y_pred: array-like of shape (n_samples,) or (n_samples, n_outputs) with estimated target values
+
+    :warning: does not support multioutput or multivariate arrays
+
+    :return: normalized max error as single numeric value
+    """
+    return metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true.flatten(), axis=0)  # type: ignore
 
 
+@validate_params
 def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict[str, float]:
     """
     Computes multiple regression scores and returns a dictionary with results.
@@ -181,13 +195,15 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
         "mean_squared_error": metrics.mean_squared_error(y_true, y_pred, multioutput=multioutput),
         "root_mean_squared_error": metrics.mean_squared_error(y_true, y_pred, squared=False, multioutput=multioutput),
         "mean_absolute_error": metrics.mean_absolute_error(y_true, y_pred, multioutput=multioutput),
-        "max_error": metrics.max_error(y_true, y_pred),
+        "max_error": metrics.max_error(y_true.flatten(), y_pred.flatten()),
         # sequences are cast to arrays in `validate_params` wrapper
         "normalized_mean_squared_error": normalized_mean_squared_error(y_true, y_pred, multioutput=multioutput),
-        "normalized_root_mean_squared_error": normalized_root_mean_squared_error(y_true, y_pred, multioutput=multioutput),
+        "normalized_root_mean_squared_error": normalized_root_mean_squared_error(
+            y_true, y_pred, multioutput=multioutput
+        ),
         "normalized_mean_absolute_error": normalized_mean_absolute_error(y_true, y_pred, multioutput=multioutput),
-        # max error is dimension independent, so normalized max error it is just computed simply as max / std
-        "normalized_max_error": metrics.max_error(y_true.flatten(), y_pred.flatten()) / np.std(y_true, axis=0),
+        # max_error is aggregated differently
+        "normalized_max_error": normalized_max_error(y_true, y_pred),
         "r2": metrics.r2_score(y_true, y_pred),  # type: ignore
         "true_mean": np.mean(y_true),
         "pred_mean": np.mean(y_pred),
