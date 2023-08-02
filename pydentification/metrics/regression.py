@@ -1,4 +1,5 @@
 import warnings
+from functools import wraps
 from numbers import Number
 from typing import Callable, Literal, Sequence
 
@@ -17,6 +18,7 @@ def validate_params(func: MetricCallable) -> MetricCallable:
     Shorthand for sklearn `validate_param` with default values used in this module
     """
 
+    @wraps(func)
     def wrapper(y_true: NumericSequence, y_pred: NumericSequence, *args, **kwargs) -> Number | NumericSequence:
         y_true = check_array(y_true, ensure_2d=False)
         y_pred = check_array(y_pred, ensure_2d=False)
@@ -32,6 +34,7 @@ def non_zero_std(func: MetricCallable) -> MetricCallable:
     Returns NaN if yes and runs metric computation normally otherwise
     """
 
+    @wraps(func)
     def wrapper(y_true: NumericSequence, y_pred: NumericSequence, *args, **kwargs) -> Number | NumericSequence:
         if np.std(y_true) == 0:
             warnings.warn(
@@ -55,6 +58,7 @@ def assemble_multioutput(func: MetricCallable) -> MetricCallable:
         - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
     """
 
+    @wraps(func)
     def wrapper(
         y_true: NDArray,
         y_pred: NDArray,
