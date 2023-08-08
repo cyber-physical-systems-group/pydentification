@@ -52,5 +52,5 @@ windows = generate_time_series_windows(
 
 <a id="1">[1]</a> 
 Johan Schoukens and Lennart Ljung (2019). 
-Nonlinear System Identification: A User-Oriented Roadmap.
+*Nonlinear System Identification: A User-Oriented Roadmap.*
 https://arxiv.org/abs/1902.00683
