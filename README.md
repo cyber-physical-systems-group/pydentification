@@ -1,5 +1,10 @@
 # pydentification
 
+![Python](https://img.shields.io/badge/python-3.10-3670A0?style=flat&logo=python&logoColor=ffdd54)
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=flat&logo=PyTorch&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-%23F7931E.svg?style=flat&logo=scikit-learn&logoColor=white)
+[![Licence](https://img.shields.io/github/license/Ileriayo/markdown-badges?style=flat)](./LICENSE)
+
 Toolbox for dynamical system identification with neural networks. It includes mostly neural network models, which are 
 created during research of CPSG, but also other models, such as reimplementations of models from literature and various
 other benchmarks. It will also include utilities for training, testing and evaluation of models.
