@@ -6,3 +6,6 @@ pytest==7.4.0
 # development
 jupyterlab==4.0.3
 jupyter==1.0.0
+# used in notebooks
+matplotlib==3.7.2
+lovely-tensors==0.1.15
