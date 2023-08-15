@@ -29,6 +29,6 @@ def to_lightning_module(
 
     class WrappedModel(meta):
         def __init__(self, module_, optimizer_, lr_scheduler_, loss_):
-            super().__init__(module_, optimizer_, lr_scheduler_, loss_)
+            super().__init__(module_, optimizer_, lr_scheduler_, loss_)  # type: ignore
 
     return WrappedModel(module, optimizer, lr_scheduler, loss)
