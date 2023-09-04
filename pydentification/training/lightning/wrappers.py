@@ -19,6 +19,9 @@ def to_lightning_module(
     This allows to separate the logic of the model from the logic of the training, where most of the models can be
     trained using the default metaclass `LightningRegressionMixin`,which implements standard regression training.
 
+    :warning: the wrapped class is not possible to save with pickle, which does not allow using this shortcut with
+              GPU training using processes (which is done in lightning and W&B)
+
     :param module: pytorch module to be wrapped
     :param optimizer: initialized optimizer to be used for training
     :param lr_scheduler: initialized learning rate scheduler to be used for training
