@@ -66,6 +66,10 @@ class LightningRegressionMixin(pl.LightningModule):
         return loss
 
     def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
+        """
+        Warning: this does not work when using distributed training, recommended solution is to predict on CPU or
+        use different Lightning wrapper, see: https://github.com/Lightning-AI/lightning/issues/10618
+        """
         x, _ = batch
         return self(x)  # type: ignore
 
@@ -77,4 +81,4 @@ class LightningRegressionMixin(pl.LightningModule):
 
         if self.lr_scheduler is None:
             return optimizer
-        return self.optimizer, self.lr_scheduler
+        return {"optimizer": optimizer, "lr_scheduler": self.lr_scheduler}
