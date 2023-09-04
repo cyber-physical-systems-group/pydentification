@@ -30,7 +30,7 @@ class LinearReadout(torch.nn.Module):
         self.n_output_state_variables = n_output_state_variables
 
         self.flatten = torch.nn.Flatten(start_dim=1)
-        self.embedding = torch.nn.Linear(
+        self.projection = torch.nn.Linear(
             in_features=self.n_input_time_steps * self.n_input_state_variables,
             out_features=self.n_output_time_steps * self.n_output_state_variables,
             bias=bias,
@@ -39,6 +39,6 @@ class LinearReadout(torch.nn.Module):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         batch_size = inputs.shape[0]
         variables = self.flatten(inputs)
-        variables = self.embedding(variables)
+        variables = self.projection(variables)
         outputs = torch.reshape(variables, shape=(batch_size, self.n_output_time_steps, self.n_output_state_variables))
         return outputs
