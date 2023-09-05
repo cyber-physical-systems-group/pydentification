@@ -7,15 +7,6 @@ import torch
 class LightningRegressionMixin(pl.LightningModule):
     """
     Default Lightning wrapper implementing standard regression training procedure used for most models in this use case
-
-    It needs to implement following lightning methods:
-        * forward
-        * training_step
-        * validation_step
-        * test_step
-        * configure_optimizers
-        * predict_step
-
     Refer to lightning docs for more details: https://lightning.ai/docs/pytorch/stable/starter/converting.html
     """
 
@@ -48,6 +39,7 @@ class LightningRegressionMixin(pl.LightningModule):
         x, y = batch
         y_hat = self(x)  # type: ignore
         loss = self.loss(y_hat, y)
+        self.log("train/loss", loss)
 
         return loss
 
@@ -55,13 +47,7 @@ class LightningRegressionMixin(pl.LightningModule):
         x, y = batch
         y_hat = self(x)  # type: ignore
         loss = self.loss(y_hat, y)
-
-        return loss
-
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        x, y = batch
-        y_hat = self(x)  # type: ignore
-        loss = self.loss(y_hat, y)
+        self.log("validation/loss", loss)
 
         return loss
 
@@ -81,4 +67,5 @@ class LightningRegressionMixin(pl.LightningModule):
 
         if self.lr_scheduler is None:
             return optimizer
-        return {"optimizer": optimizer, "lr_scheduler": self.lr_scheduler}
+
+        return {"optimizer": optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "validation/loss"}
