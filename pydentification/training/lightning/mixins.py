@@ -51,6 +51,14 @@ class LightningRegressionMixin(pl.LightningModule):
 
         return loss
 
+    def on_validation_epoch_end(self):
+        predictions = torch.stack(self.validation_step_outputs)
+
+        self.log("validation/epoch_loss", predictions)
+        self.log("optimizer/lr", self.trainer.optimizers[0].param_groups[0]["lr"])  # assume one optimizer
+
+        self.validation_step_outputs.clear()  # free memory
+
     def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
         """
         Warning: this does not work when using distributed training, recommended solution is to predict on CPU or
