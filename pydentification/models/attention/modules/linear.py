@@ -1,10 +1,10 @@
 import torch
 
 
-class LinearEmbedding(torch.nn.Module):
+class LinearProjection(torch.nn.Module):
     """
-    LinearEmbedding layer converting time series with shape (batch_size, n_input_time_steps, n_input_state_variables)
-    into time series with shape (batch_size, n_output_time_steps, n_output_state_variables).
+    Module converting time series with shape (batch_size, n_input_time_steps, n_input_state_variables) into time series
+    with shape (batch_size, n_output_time_steps, n_output_state_variables) using learned linear transformation.
 
     It can be used to up or down project state variables and shorten or extend time series length.
     """
@@ -24,7 +24,7 @@ class LinearEmbedding(torch.nn.Module):
         :param n_output_state_variables: number of states to produce
         :param bias: if True bias will be used in linear operation
         """
-        super(LinearEmbedding, self).__init__()
+        super(LinearProjection, self).__init__()
 
         self.n_input_time_steps = n_input_time_steps
         self.n_output_time_steps = n_output_time_steps
@@ -32,7 +32,7 @@ class LinearEmbedding(torch.nn.Module):
         self.n_output_state_variables = n_output_state_variables
 
         self.flatten = torch.nn.Flatten(start_dim=1)
-        self.embedding = torch.nn.Linear(
+        self.projection = torch.nn.Linear(
             in_features=self.n_input_time_steps * self.n_input_state_variables,
             out_features=self.n_output_time_steps * self.n_output_state_variables,
             bias=bias,
@@ -41,6 +41,6 @@ class LinearEmbedding(torch.nn.Module):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         batch_size = inputs.shape[0]
         variables = self.flatten(inputs)
-        variables = self.embedding(variables)
+        variables = self.projection(variables)
         outputs = torch.reshape(variables, shape=(batch_size, self.n_output_time_steps, self.n_output_state_variables))
         return outputs
