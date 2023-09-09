@@ -2,12 +2,12 @@
 
 This module contains the data loading utils for system identification. 
 
-## Windowing
+## Core
+
+### Window Generation
 
 The core functionality is window generation for time series data or system measurements. Two core identification
 problems are supported: simulation modelling and predictive modelling [1]. 
-
-## Examples
 
 Generating a windowed dataset for simulation modelling, with input length of 64 samples of excitation and output length
 of 16 samples of measured system response, where the alignment of excitation and response is from the last sample.
@@ -46,6 +46,109 @@ windows = generate_time_series_windows(
     backward_output_window_size=16,
     forward_output_window_size=16,
 )
+```
+
+### Splitting
+
+
+
+## Data Modules
+
+Data modules are utils based on lightning data modules. They are used for loading data and can be extended for
+preprocessing. Implemented datamodules are:
+* `CsvDataModule` - for loading data from csv files
+
+### CSV Data Module
+
+Simulation and prediction support for CSV based datasets. It uses `generate_time_series_windows` and pandas for loading
+data. It is recommended to use this module for small datasets.
+
+Model and training needs to be defined to follow this order, for example in typical simulation modelling forward inputs
+are features and forward outputs are labels. For other types of modelling this may be different. 
+
+```python
+from pydentification.data import CsvDataModule
+
+
+dm = CsvDataModule(
+    dataset_path="dataset.csv",  # CSV file with data 
+    input_columns=["x"],
+    output_columns=["y"],
+    test_size=0.5, 
+    batch_size=32,
+    validation_size=0.1,
+    shift=1,
+    forward_input_window_size=32,
+    forward_output_window_size=32,
+    forward_output_mask=31,
+)
+
+trainer.fit(model, datamodule=dm)  # assume trainer and model exist and define required lightning interface
+```
+
+Module defined as above will return 2 items in each dataloader, one will be forward inputs to the system, which are
+model features and one will be forward system outputs, which are model target. Example code to handle this is in model:
+
+```python
+def training_step(self, batch, batch_idx):  # assume defined in lightning module
+    x, y = batch
+    y_hat = self(x)  # type: ignore
+    loss = self.loss(y_hat, y)
+    self.log("train/loss", loss)
+
+    return loss
+```
+
+For predictive modelling, following datamodule can be defined. Code to handle this is the same as in simulation, but
+model will be acting as time advancing operator.
+
+```python
+from pydentification.data import CsvDataModule
+
+
+dm = CsvDataModule(
+    dataset_path="dataset.csv",  # CSV file with data 
+    output_columns=["x", "y", "z"],
+    test_size=0.5, 
+    batch_size=32,
+    validation_size=0.1,
+    shift=1,
+    backward_output_window_size=32,
+    forward_output_window_size=8,  # 8-step ahead prediction 
+)
+```
+
+In complex modelling, where system inputs are used and past outputs are auxiliary features, following datamodule can be
+defined and handled in the model.
+
+```python
+from pydentification.data import CsvDataModule
+
+
+dm = CsvDataModule(
+    dataset_path="dataset.csv",  # CSV file with data 
+    input_columns=["u"],
+    output_columns=["x", "y", "z"],
+    test_size=0.5, 
+    batch_size=32,
+    validation_size=0.1,
+    shift=1,
+    forward_input_window_size=16,  # 16 step forward core features
+    backward_output_window_size=32,  # 32-step back auxiliary features
+    forward_output_window_size=16,  # 16-step ahead prediction 
+)
+```
+
+To handle this in model and trainer, following code can be used:
+
+```python
+def training_step(self, batch, batch_idx):  # assume defined in lightning module
+    system_inputs, past_system_outputs, targets = batch
+    y_hat = self(system_inputs, past_system_outputs)  # handle 2 inputs to the model to get prediction
+    loss = self.loss(y_hat, targets)
+    self.log("train/loss", loss)
+
+    return loss
 ```
 
 ## References
