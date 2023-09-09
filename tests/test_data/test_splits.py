@@ -1,6 +1,6 @@
 import pytest
 
-from pydentification.data.datamodules.splits import compute_n_validation_samples, draw_validation_indices
+from pydentification.data.splits import compute_n_validation_samples, draw_validation_indices
 
 
 @pytest.mark.parametrize(
