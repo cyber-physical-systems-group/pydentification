@@ -4,18 +4,9 @@ import lightning.pytorch as pl
 import torch
 
 
-class LightningRegressionMixin(pl.LightningModule):
+class LightningTrainingModule(pl.LightningModule):
     """
     Default Lightning wrapper implementing standard regression training procedure used for most models in this use case
-
-    It needs to implement following lightning methods:
-        * forward
-        * training_step
-        * validation_step
-        * test_step
-        * configure_optimizers
-        * predict_step
-
     Refer to lightning docs for more details: https://lightning.ai/docs/pytorch/stable/starter/converting.html
     """
 
@@ -36,18 +27,19 @@ class LightningRegressionMixin(pl.LightningModule):
         """
         super().__init__()
 
-        self.wrapped_module = module
+        self.module = module
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.loss = loss or torch.nn.functional.mse_loss
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.wrapped_module(x)
+        return self.module(x)
 
     def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
         x, y = batch
         y_hat = self(x)  # type: ignore
         loss = self.loss(y_hat, y)
+        self.log("train/loss", loss)
 
         return loss
 
@@ -55,15 +47,17 @@ class LightningRegressionMixin(pl.LightningModule):
         x, y = batch
         y_hat = self(x)  # type: ignore
         loss = self.loss(y_hat, y)
+        self.log("validation/loss", loss)
 
         return loss
 
-    def test_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        x, y = batch
-        y_hat = self(x)  # type: ignore
-        loss = self.loss(y_hat, y)
+    def on_validation_epoch_end(self):
+        predictions = torch.stack(self.validation_step_outputs)
 
-        return loss
+        self.log("validation/epoch_loss", predictions)
+        self.log("optimizer/lr", self.trainer.optimizers[0].param_groups[0]["lr"])  # assume one optimizer
+
+        self.validation_step_outputs.clear()  # free memory
 
     def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
         """
@@ -81,4 +75,5 @@ class LightningRegressionMixin(pl.LightningModule):
 
         if self.lr_scheduler is None:
             return optimizer
-        return {"optimizer": optimizer, "lr_scheduler": self.lr_scheduler}
+
+        return {"optimizer": optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "validation/loss"}
