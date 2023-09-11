@@ -1,4 +1,4 @@
-# Dynamical Self Attention
+# Dynamical Transformer
 
 This module implements self-attention model for dynamical system. It is really similar to transformer (encoder or
 decoder), but it does not share feedforward network weights between layers. In classical transformer, the inputs have
