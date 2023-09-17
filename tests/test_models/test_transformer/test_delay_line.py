@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pydentification.models.attention import DelayLineFeedforward, TransformerFeedforward
+from pydentification.models.transformer import DelayLineFeedforward, TransformerFeedforward
 
 
 @pytest.mark.parametrize(
