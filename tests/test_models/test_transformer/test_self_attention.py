@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pydentification.models.attention import DynamicalSelfAttentionBlock
+from pydentification.models.transformer import DynamicalSelfAttention
 
 
 @pytest.mark.parametrize(
@@ -17,20 +17,19 @@ from pydentification.models.attention import DynamicalSelfAttentionBlock
         (10, 4, 4, True, True),  # 4 attention heads
     ),
 )
-def test_dynamical_self_attention_block(
+def test_dynamical_self_attention(
     n_time_steps: int,
     n_state_variables: int,
     n_heads: int,
     bias: bool,
     skip_connection: bool,
 ):
-    module = DynamicalSelfAttentionBlock(
+    module = DynamicalSelfAttention(
         n_time_steps=n_time_steps,
         n_state_variables=n_state_variables,
         n_heads=n_heads,
         bias=bias,
-        ff_skip_connection=skip_connection,
-        sa_skip_connection=skip_connection,
+        skip_connection=skip_connection,
     )
 
     inputs = torch.zeros((1, n_time_steps, n_state_variables))
