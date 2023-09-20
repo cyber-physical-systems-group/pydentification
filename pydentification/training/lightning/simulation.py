@@ -13,7 +13,7 @@ class LightningSimulationTrainingModule(pl.LightningModule):
     def __init__(
         self,
         module: torch.nn.Module,
-        optimizer: Optional[torch.optim.Optimizer],
+        optimizer: torch.optim.Optimizer,
         lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
         loss: Optional[torch.nn.Module] = torch.nn.functional.mse_loss,
     ):
