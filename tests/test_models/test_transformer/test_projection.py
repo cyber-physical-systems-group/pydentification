@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pydentification.models.attention import LinearProjection
+from pydentification.models.transformer import LinearProjection
 
 
 @pytest.mark.parametrize(
