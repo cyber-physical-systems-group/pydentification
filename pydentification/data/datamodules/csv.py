@@ -69,6 +69,8 @@ class CsvDataModule(pl.LightningDataModule):
         :param forward_output_mask: number of masked samples for forward outputs (states)
         :param backward_output_mask: number of masked samples for backward outputs (states)
         """
+        super().__init__()
+
         self.dataset_path = dataset_path
         self.input_columns = input_columns
         self.output_columns = output_columns
@@ -98,7 +100,11 @@ class CsvDataModule(pl.LightningDataModule):
         self.val_samples = None
         self.test_samples = None
 
-    def setup(self, stage: Literal["fit", "test"]):
+        # use only NODE_RANK = 0
+        # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
+        self.prepare_data_per_node = False
+
+    def setup(self, stage: Literal["fit", "test", "predict"]) -> None:
         """
         Prepares dataset for training, validation or testing using following steps:
         1. Load dataset from CSV file
@@ -123,9 +129,9 @@ class CsvDataModule(pl.LightningDataModule):
             # window dict is converted to list of numpy arrays, where the input and output of the model is determined
             # by order in window generation dict, which is always the same (see main docstring)
             self.train_samples = [np.delete(s, validation_index, axis=0) for s in windows.values() if s.size > 0]
-            self.val_samples = [np.take(s, validation_index, axis=0) for s in windows.valyes() if s.size > 0]
+            self.val_samples = [np.take(s, validation_index, axis=0) for s in windows.values() if s.size > 0]
 
-        if stage == "test":
+        if stage == "test" or stage == "predict":
             inputs = self.test_dataset[self.input_columns].values if self.input_columns else None
             outputs = self.test_dataset[self.output_columns].values
 
@@ -149,6 +155,11 @@ class CsvDataModule(pl.LightningDataModule):
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
     def test_dataloader(self) -> Iterable:
-        """Generates training data and returns torch DataLoader"""
+        """Generates test data and returns torch DataLoader"""
+        dataset = TensorDataset(*map(torch.from_numpy, self.test_samples))
+        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+
+    def predict_dataloader(self) -> Iterable:
+        """Generates test data and returns torch DataLoader for prediction"""
         dataset = TensorDataset(*map(torch.from_numpy, self.test_samples))
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
