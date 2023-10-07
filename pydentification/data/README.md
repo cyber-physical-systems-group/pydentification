@@ -50,13 +50,23 @@ windows = generate_time_series_windows(
 
 ### Splitting
 
+This module also contains utils for splitting data into train and test sets. It is not random sampling, like for most 
+datasets, since the goal of system identification is to predict future system behaviour, so splitting is done based
+on the time axis of the dataset.
 
+```python
+from pydentification.data import time_series_train_test_split
+
+
+train, test = time_series_train_test_split(dataset, test_size=0.5)  # assume dataset exists and can be indexed
+```
 
 ## Data Modules
 
 Data modules are utils based on lightning data modules. They are used for loading data and can be extended for
 preprocessing. Implemented datamodules are:
 * `CsvDataModule` - for loading data from csv files
+* `PredictionDataModule` - for loading data from prediction datasets with dynamically changed autoregression window size
 
 ### CSV Data Module
 
