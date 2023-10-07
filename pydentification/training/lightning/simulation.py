@@ -63,4 +63,5 @@ class LightningSimulationTrainingModule(pl.LightningModule):
         return self.module(x)  # type: ignore
 
     def configure_optimizers(self) -> dict[str, Any]:
-        return {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        return {key: value for key, value in config.items() if value is not None}  # remove None values
