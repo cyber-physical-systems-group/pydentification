@@ -49,6 +49,9 @@ class PredictionDataModule(pl.LightningDataModule):
     and cached for given autoregression window size. This allows to train and test models with different autoregression
     window sizes without generating new windows for each size every time. This datamodule also supports validation set
     generated dynamically from training set, (see "draw_validation_indices").
+
+    `n_forward_time_steps` can be set during method call (training outside lightning) or using callback setting the
+    attribute in the datamodule (when using lightning). Implementation of such callback is given in `training.lightning.callback`.  # noqa: E501
     """
 
     def __init__(
@@ -59,7 +62,8 @@ class PredictionDataModule(pl.LightningDataModule):
         validation_size: Optional[Union[int, float]] = None,
         batch_size: int = 32,
         n_workers: int = 0,
-        backward_output_window_size: int = 0,
+        n_backward_time_steps: int = 1,
+        n_forward_time_steps: int = 1,
         train_shift: int = 1,
         cache_size: int = 5,
     ):
@@ -70,7 +74,8 @@ class PredictionDataModule(pl.LightningDataModule):
                                 validation samples are drawn from training data
         :param batch_size: batch size used to train and test the model by torch DataLoaders
         :param n_workers: number of workers used by torch DataLoaders
-        :param backward_output_window_size: number of output (state) measurements to include before the prediction start
+        :param n_backward_time_steps: number of output (state) measurements to include before the prediction start
+        :param n_forward_time_steps: number of output (state) measurements to predict
         :param train_shift: number of samples to move the prediction starting point, can generate overlapping samples
         """
         super().__init__()
@@ -84,7 +89,8 @@ class PredictionDataModule(pl.LightningDataModule):
         self.n_workers = n_workers
 
         # model input is fixed and it needs to be equal to the number of backward samples
-        self.model_input_window_size = backward_output_window_size
+        self.n_backward_time_steps = n_backward_time_steps
+        self.n_forward_time_steps = n_forward_time_steps  # set initial value, which can be changed by Callbacks
         self.train_shift = train_shift
 
         # cache placeholders
@@ -99,7 +105,7 @@ class PredictionDataModule(pl.LightningDataModule):
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
         self.prepare_data_per_node = False
 
-    def setup(self, _: None = None) -> None:
+    def setup(self, stage: str | None = None) -> None:
         """
         Prepares dataset for training and test by splitting the data into training and test sets
         The windows are generated dynamically using the parameter passed to each dataloader
@@ -121,7 +127,7 @@ class PredictionDataModule(pl.LightningDataModule):
         """
         windows = generate_time_series_windows(
             outputs=self.train_states,
-            backward_output_window_size=self.model_input_window_size,
+            backward_output_window_size=self.n_backward_time_steps,
             forward_output_window_size=n_time_steps,
             shift=self.train_shift,
         )
@@ -147,61 +153,73 @@ class PredictionDataModule(pl.LightningDataModule):
 
         return train_dataset, validation_dataset
 
-    def train_dataloader(self, n_time_steps: int) -> Iterable:
+    def train_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
         """
         Generates training data and returns torch DataLoader for given amount of forward time steps and fixed backward
         time steps. Windows are generated dynamically with shift given during the training.
         """
-        if train_dataset := self.train_cache.get(n_time_steps):
+        if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
+            n_forward_time_steps = self.n_forward_time_steps
+
+        if train_dataset := self.train_cache.get(n_forward_time_steps):
             return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
 
-        train_dataset, _ = self.sample_and_cache(n_time_steps)
+        train_dataset, _ = self.sample_and_cache(n_forward_time_steps)
         return DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
 
-    def val_dataloader(self, n_time_steps: int) -> Iterable:
+    def val_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
         """
         Generates training data and returns torch DataLoader
         with validation data which is removed from training data loader
         """
+        if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
+            n_forward_time_steps = self.n_forward_time_steps
+
         if self.validation_size is None:
             raise ValueError("Validation size must be specified to use validation data loader!")
 
-        if validation_dataset := self.validation_cache.get(n_time_steps):
+        if validation_dataset := self.validation_cache.get(n_forward_time_steps):
             return DataLoader(validation_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
-        _, validation_dataset = self.sample_and_cache(n_time_steps)
+        _, validation_dataset = self.sample_and_cache(n_forward_time_steps)
         return DataLoader(validation_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
 
-    def test_dataloader(self, n_time_steps: int) -> Iterable:
+    def test_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
         """Generates test data and returns torch DataLoader for given amount of forward time steps"""
-        if test_dataset := self.test_cache.get(n_time_steps):
+        if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
+            n_forward_time_steps = self.n_forward_time_steps
+
+        if test_dataset := self.test_cache.get(n_forward_time_steps):
             return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
         windows = generate_time_series_windows(
             outputs=self.test_states,
-            backward_output_window_size=self.model_input_window_size,
-            forward_output_window_size=n_time_steps,
-            shift=n_time_steps,
+            backward_output_window_size=self.n_backward_time_steps,
+            forward_output_window_size=n_forward_time_steps,
+            shift=n_forward_time_steps,
         )
 
         dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache.add(key=n_time_steps, dataset=dataset)
+        self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
 
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
-    def predict_dataloader(self, n_time_steps: int) -> Iterable:
+    def predict_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
         """Generates test data and returns torch DataLoader for given amount of forward time steps"""
-        if test_dataset := self.test_cache.get(n_time_steps):
+        if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
+            n_forward_time_steps = self.n_forward_time_steps
+
+        if test_dataset := self.test_cache.get(n_forward_time_steps):
             return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
         windows = generate_time_series_windows(
             outputs=self.test_states,
-            backward_output_window_size=self.model_input_window_size,
-            forward_output_window_size=n_time_steps,
-            shift=n_time_steps,
+            backward_output_window_size=self.n_backward_time_steps,
+            forward_output_window_size=n_forward_time_steps,
+            shift=n_forward_time_steps,
         )
 
         dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache.add(key=n_time_steps, dataset=dataset)
+        self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
 
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
