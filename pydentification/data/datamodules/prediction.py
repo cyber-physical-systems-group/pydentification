@@ -1,5 +1,6 @@
 # typing is ignored due to using dynamic casting between torch, numpy and pandas, which is not properly handled by mypy
 # type: ignore
+from collections import OrderedDict
 from typing import Iterable, Optional, Union
 
 import lightning.pytorch as pl
@@ -10,6 +11,32 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from ..sequences import generate_time_series_windows, time_series_train_test_split
 from ..splits import draw_validation_indices
+
+
+class TensorDatasetCache:
+    """
+    Almost naive class for caching TensorDatasets. It is used in PredictionDataModule to cache train or validation
+    datasets. The cache is limited to given size and uses FIFO policy to remove old datasets so memory is over-consumed.
+
+    The cache is implemented as class, since using @cache or @lru_cache caches only single function and the datamodule
+    generates the same windows when called with multiple methods (train and validation or test and prediction datasets).
+    """
+
+    def __init__(self, cache_size: int):
+        self.cache_size = cache_size
+        self.cache = OrderedDict()
+
+    def add(self, key: int, dataset: TensorDataset) -> None:
+        if key in self.cache:
+            return  # already in cache
+
+        if len(self.cache) >= self.cache_size:
+            self.cache.popitem(last=False)  # pop with FIFO order
+
+        self.cache[key] = dataset
+
+    def get(self, item: int) -> TensorDataset | None:
+        return self.cache.get(item)
 
 
 class PredictionDataModule(pl.LightningDataModule):
@@ -34,6 +61,7 @@ class PredictionDataModule(pl.LightningDataModule):
         n_workers: int = 0,
         backward_output_window_size: int = 0,
         train_shift: int = 1,
+        cache_size: int = 5,
     ):
         """
         :param states: measurements of states of the (autonomous) system given as numpy
@@ -63,9 +91,9 @@ class PredictionDataModule(pl.LightningDataModule):
         self.train_states = None
         self.test_states = None
 
-        self.train_cache: dict[int, TensorDataset] = {}
-        self.validation_cache: dict[int, TensorDataset] = {}
-        self.test_cache: dict[int, TensorDataset] = {}
+        self.train_cache = TensorDatasetCache(cache_size)
+        self.validation_cache = TensorDatasetCache(cache_size)
+        self.test_cache = TensorDatasetCache(cache_size)
 
         # use only NODE_RANK = 0
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
@@ -102,7 +130,7 @@ class PredictionDataModule(pl.LightningDataModule):
 
         if not self.validation_size:  # no validation data
             dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-            self.train_cache[n_time_steps] = dataset
+            self.train_cache.add(key=n_time_steps, dataset=dataset)
             return dataset, None
 
         validation_index = draw_validation_indices(self.validation_size, n_samples)
@@ -114,8 +142,8 @@ class PredictionDataModule(pl.LightningDataModule):
         train_dataset = TensorDataset(*map(torch.from_numpy, train_samples))
         validation_dataset = TensorDataset(*map(torch.from_numpy, validation_samples))
 
-        self.train_cache[n_time_steps] = train_dataset
-        self.validation_cache[n_time_steps] = validation_dataset
+        self.train_cache.add(key=n_time_steps, dataset=train_dataset)
+        self.validation_cache.add(key=n_time_steps, dataset=validation_dataset)
 
         return train_dataset, validation_dataset
 
@@ -157,12 +185,12 @@ class PredictionDataModule(pl.LightningDataModule):
         )
 
         dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache[n_time_steps] = dataset
+        self.test_cache.add(key=n_time_steps, dataset=dataset)
 
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
     def predict_dataloader(self, n_time_steps: int) -> Iterable:
-        """ "Generates test data and returns torch DataLoader for given amount of forward time steps"""
+        """Generates test data and returns torch DataLoader for given amount of forward time steps"""
         if test_dataset := self.test_cache.get(n_time_steps):
             return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
@@ -174,6 +202,6 @@ class PredictionDataModule(pl.LightningDataModule):
         )
 
         dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache[n_time_steps] = dataset
+        self.test_cache.add(key=n_time_steps, dataset=dataset)
 
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
