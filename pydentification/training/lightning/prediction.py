@@ -89,4 +89,5 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         return self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during prediction
 
     def configure_optimizers(self) -> dict[str, Any]:
-        return {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        return {key: value for key, value in config.items() if value is not None}  # remove None values
