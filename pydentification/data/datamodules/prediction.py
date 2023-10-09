@@ -153,6 +153,26 @@ class PredictionDataModule(pl.LightningDataModule):
 
         return train_dataset, validation_dataset
 
+    def sample_for_test_or_predict(self, n_forward_time_steps: int) -> Iterable:
+        """Generates data for test or prediction and returns torch DataLoader for given amount of forward time steps"""
+        if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
+            n_forward_time_steps = self.n_forward_time_steps
+
+        if test_dataset := self.test_cache.get(n_forward_time_steps):
+            return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+
+        windows = generate_time_series_windows(
+            outputs=self.test_states,
+            backward_output_window_size=self.n_backward_time_steps,
+            forward_output_window_size=n_forward_time_steps,
+            shift=n_forward_time_steps,
+        )
+
+        dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
+        self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
+
+        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+
     def train_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
         """
         Generates training data and returns torch DataLoader for given amount of forward time steps and fixed backward
@@ -189,37 +209,25 @@ class PredictionDataModule(pl.LightningDataModule):
         if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
             n_forward_time_steps = self.n_forward_time_steps
 
-        if test_dataset := self.test_cache.get(n_forward_time_steps):
-            return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        if isinstance(n_forward_time_steps, int):  # return single dataloader
+            return self.sample_for_test_or_predict(n_forward_time_steps)
 
-        windows = generate_time_series_windows(
-            outputs=self.test_states,
-            backward_output_window_size=self.n_backward_time_steps,
-            forward_output_window_size=n_forward_time_steps,
-            shift=n_forward_time_steps,
-        )
+        # returns multiple dataloaders with different number of auto-regressive steps
+        if isinstance(n_forward_time_steps, Iterable):
+            return [self.sample_for_test_or_predict(n) for n in n_forward_time_steps]
 
-        dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
+        raise ValueError(f"n_forward_time_steps must be int or Iterable[int], got {type(n_forward_time_steps)}")
 
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
-
-    def predict_dataloader(self, n_forward_time_steps: int | None = None) -> Iterable:
+    def predict_dataloader(self, n_forward_time_steps: int | Iterable[int] | None = None) -> Iterable:
         """Generates test data and returns torch DataLoader for given amount of forward time steps"""
         if not n_forward_time_steps:  # when using lightning `self.n_forward_time_steps` is set by callback
             n_forward_time_steps = self.n_forward_time_steps
 
-        if test_dataset := self.test_cache.get(n_forward_time_steps):
-            return DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        if isinstance(n_forward_time_steps, int):  # return single dataloader
+            return self.sample_for_test_or_predict(n_forward_time_steps)
 
-        windows = generate_time_series_windows(
-            outputs=self.test_states,
-            backward_output_window_size=self.n_backward_time_steps,
-            forward_output_window_size=n_forward_time_steps,
-            shift=n_forward_time_steps,
-        )
+        # returns multiple dataloaders with different number of auto-regressive steps
+        if isinstance(n_forward_time_steps, Iterable):
+            return [self.sample_for_test_or_predict(n) for n in n_forward_time_steps]
 
-        dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
-        self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
-
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        raise ValueError(f"n_forward_time_steps must be int or Iterable[int], got {type(n_forward_time_steps)}")
