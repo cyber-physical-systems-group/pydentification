@@ -50,11 +50,13 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         predictions = torch.empty_like(y)
 
         for step in range(predictions.shape[1]):  # iterate over time steps
+            # account for auto-regression longer then initial input
+            ar_start_idx = max(0, step - x.shape[1])
             if teacher_forcing:
                 # concat inputs with targets in teacher forcing
-                step_inputs = torch.cat([x[:, step:, :], y[:, :step, :]], dim=1)
+                step_inputs = torch.cat([x[:, step:, :], y[:, ar_start_idx:step, :]], dim=1)
             else:
-                step_inputs = torch.cat([x[:, step:, :], predictions[:, :step, :]], dim=1)
+                step_inputs = torch.cat([x[:, step:, :], predictions[:, ar_start_idx:step, :]], dim=1)
 
             y_hat = self.module(step_inputs)
             predictions[:, step, :] = y_hat[:, 0, :]
