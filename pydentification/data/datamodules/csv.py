@@ -21,7 +21,7 @@ class CsvDataModule(pl.LightningDataModule):
 
     The dataloaders return batches of windows, where each window is one of the system inputs or outputs with time-shifts
     They are returned in following order (can be more than 2, but if given sequence is not used it will not be present):
-    1. backward_inputs2
+    1. backward_inputs
     2. backward_outputs
     3. forward_inputs
     4. forward_outputs

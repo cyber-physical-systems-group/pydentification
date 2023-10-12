@@ -50,11 +50,13 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         predictions = torch.empty_like(y)
 
         for step in range(predictions.shape[1]):  # iterate over time steps
+            # account for auto-regression longer then initial input
+            ar_start_idx = max(0, step - x.shape[1])
             if teacher_forcing:
                 # concat inputs with targets in teacher forcing
-                step_inputs = torch.cat([x[:, step:, :], y[:, :step, :]], dim=1)
+                step_inputs = torch.cat([x[:, step:, :], y[:, ar_start_idx:step, :]], dim=1)
             else:
-                step_inputs = torch.cat([x[:, step:, :], predictions[:, :step, :]], dim=1)
+                step_inputs = torch.cat([x[:, step:, :], predictions[:, ar_start_idx:step, :]], dim=1)
 
             y_hat = self.module(step_inputs)
             predictions[:, step, :] = y_hat[:, 0, :]
@@ -84,9 +86,12 @@ class LightningPredictionTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
+    def predict_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
+    ) -> torch.Tensor:
         """Requires using batch of training inputs and targets to know the number of time steps to predict"""
         return self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during prediction
 
     def configure_optimizers(self) -> dict[str, Any]:
-        return {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        return {key: value for key, value in config.items() if value is not None}  # remove None values
