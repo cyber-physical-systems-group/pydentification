@@ -86,7 +86,9 @@ class LightningPredictionTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
+    def predict_step(
+        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
+    ) -> torch.Tensor:
         """Requires using batch of training inputs and targets to know the number of time steps to predict"""
         return self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during prediction
 
