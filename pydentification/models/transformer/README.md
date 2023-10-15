@@ -66,6 +66,16 @@ model = torch.nn.Sequential(
 )
 ```
 
+### Causality
+
+Transformer is not causal by default, which means that it can use information from the future. This is not a problem for
+many benchmarks, but sometimes it is required to run casual model. This can be achieved using causal mode in 
+`DynamicalSelfAttention` module (adding `is_causal=True`) makes the module causal, by applying mask to the attention
+scores, analogous to the one used in decoder transformers.
+
+For `DelayLineFeedforward` module, the causality is achieved by using inverse mask, setting all connections from future
+time steps to past to zero (by multiplication after processing with parameter weight). This makes the module causal.
+
 ### Training
 
 The model can be trained with lightning framework in the straight forward way. Using `model` (created as in the example
