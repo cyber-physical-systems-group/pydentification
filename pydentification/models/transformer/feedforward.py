@@ -42,6 +42,8 @@ class MaskedLinear(torch.nn.Module):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         # lower triangular mask with ones in elements where connection is allowed
         mask = torch.tril((torch.full((self.in_features, self.in_features), 1.0)), diagonal=0)
+        mask = mask.to(self.weight.device).to(self.weight.dtype)
+
         return torch.nn.functional.linear(inputs, self.weight * mask, self.bias)
 
     def extra_repr(self) -> str:
