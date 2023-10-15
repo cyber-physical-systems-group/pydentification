@@ -1,5 +1,5 @@
 from .block import DynamicalSelfAttentionBlock
-from .feedforward import DelayLineFeedforward, TransformerFeedforward
+from .feedforward import CausalDelayLineFeedforward, DelayLineFeedforward, MaskedLinear, TransformerFeedforward
 from .linear import LinearProjection
 from .self_attention import DynamicalSelfAttention
 
@@ -9,4 +9,6 @@ __all__ = [
     "DynamicalSelfAttention",
     "LinearProjection",
     "TransformerFeedforward",
+    "MaskedLinear",
+    "CausalDelayLineFeedforward",
 ]
