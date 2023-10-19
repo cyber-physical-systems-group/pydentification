@@ -1,11 +1,12 @@
+# isort: skip_file
 import os
 from datetime import timedelta
 
 import lightning.pytorch as pl
 import pandas as pd
 import torch
-
 import wandb
+
 from pydentification.data.datamodules.prediction import PredictionDataModule
 from pydentification.experiment.reporters import report_metrics, report_prediction_plot, report_trainable_parameters
 from pydentification.metrics import regression_metrics
