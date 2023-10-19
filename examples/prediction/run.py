@@ -147,7 +147,7 @@ def run_single_experiment():
             torch.save(model, path)
             wandb.save(path)
         except Exception as e:
-            print(e)  # print traceback, since W&B uses multiprocessing, which can loose information about exception
+            print(e)  # print traceback, since W&B uses multiprocessing, which can lose information about exception
             raise ValueError("Experiment failed.") from e
 
 
