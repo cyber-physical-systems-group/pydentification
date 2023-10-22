@@ -8,11 +8,19 @@ typically have fewer dimensions than what is expected in transformer embeddings.
 
 This package implements 5 torch modules (one of them is a block of submodules) and 1 lightning class for training,
 those torch modules can be combined with other modules, such as activations or various learned layers. The modules are:
-* `LinearProjection` - used for converting the signal to embedding and converting produced embedding to prediction
-* `DynamicalSelfAttention` - the module computes self-attention for dynamical systems
-* `DelayLineFeedforward` - learned linear transformation of the input signal using delay line
-* `TransformerFeedforward` - the module contains feedforward network in transformer style for dynamical systems
-* `DynamicalSelfAttentionBlock` - module contains DynamicalSelfAttention, DelayLineFeedforward and any activation
+* Embeddings & Linear
+  * `LinearProjection` - used for converting the signal to embedding and converting produced embedding to prediction
+  * `MaskedLinear` - linear layer with a mask applied to part of the weights to preserve causality
+  * `ConstantLengthEmbedding` - used for converting the signal to embedding with fixed length
+  * `ShorteningCausalEmbedding` - used for converting the signal to embedding, the length of the embedding is shortened, but casuality is preserved
+* Attention
+  * `DynamicalSelfAttention` - the module computes self-attention for dynamical systems
+* Feedforward
+  * `DelayLineFeedforward` - learned linear transformation of the input signal using delay line
+  * `CausalDelayLineFeedforward` - learned linear transformation of the input signal using delay line, where some weights are masked to preserve causality
+  * `TransformerFeedforward` - the module contains feedforward network in transformer style for dynamical systems
+* Aggregates
+  * `DynamicalSelfAttentionBlock` - module contains `DynamicalSelfAttention`, `DelayLineFeedforward` and any activation
 
 Additionally `LightningTrainingModule`, which can be used for training the model with pytorch-lightning framework.
 
@@ -76,6 +84,12 @@ scores, analogous to the one used in decoder transformers.
 For `DelayLineFeedforward` module, the causality is achieved by using inverse mask, setting all connections from future
 time steps to past to zero (by multiplication after processing with parameter weight). This makes the module causal.
 
+Additionally two causal embeddings are added. Both of them are linear, one implements causal embedding by applying the 
+same up-projection to each time step (`ConstantLengthEmbedding`), the other one implements causal embedding by applying
+the same up-projection to each time step (`ShorteningCausalEmbedding`) followed by large 1D convolution, which
+aggregates neighbouring time-steps into one. The length of input embedding must be divisable by the shortened embedding
+length. Convolution has stride equal to kernel size, which makes it causal, since past is not mixed with the future.
+
 ### Training
 
 The model can be trained with lightning framework in the straight forward way. Using `model` (created as in the example
@@ -96,7 +110,7 @@ trainer = pl.Trainer(
     max_epochs=10,
     accelerator="gpu",
     devices=1,
-    default_root_dir=f"models",
+    default_root_dir="models",
     callbacks=[early_stopping, checkpoint],
 )
 
