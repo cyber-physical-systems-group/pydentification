@@ -1,4 +1,4 @@
-from .gru import DynamicalStackedGRU
-from .lstm import DynamicalStackedLSTM
+from .gru import TimeSeriesGRU
+from .lstm import TimeSeriesLSTM
 
-__all__ = ["DynamicalStackedGRU", "DynamicalStackedLSTM"]
+__all__ = ["TimeSeriesGRU", "TimeSeriesLSTM"]
