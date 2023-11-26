@@ -73,7 +73,7 @@ class StepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
 
 class MultiStepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
     """
-    Increases the length of auto-regression by gamma gamma once the number of epoch reaches one of the milestones.
+    Increases the length of auto-regression by gamma once the number of epoch reaches one of the milestones.
     Works as MultiStepLR scheduler, but increasing the length (given as int!) instead of decaying.
 
     Source reference: https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#MultiStepLR
