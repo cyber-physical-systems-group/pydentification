@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch import Tensor
 
-from pydentification.models.kernel_regression.memory import NNDescentMemoryManager, needs_tensor_with_dims
+from pydentification.models.nonparametric.memory import NNDescentMemoryManager, needs_tensor_with_dims
 
 
 @pytest.mark.parametrize(

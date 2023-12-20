@@ -2,8 +2,8 @@ from functools import cached_property
 
 import torch
 
-from pydentification.models.feedforward import TimeSeriesLinear
-from pydentification.models.orthogonal.fourier import IRFFTModule, RFFTModule
+from pydentification.models.modules.feedforward import TimeSeriesLinear
+from pydentification.models.modules.orthogonal.fourier import IRFFTModule, RFFTModule
 
 
 class FrequencyLinear(torch.nn.Module):

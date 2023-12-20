@@ -3,8 +3,7 @@ from typing import Any
 import pytest
 import torch
 
-from pydentification.models.transformer.feedforward import CausalDelayLineFeedforward, MaskedLinear
-from pydentification.models.transformer.self_attention import DynamicalSelfAttention
+from pydentification.models.networks.transformer import CausalDelayLineFeedforward, DynamicalSelfAttention, MaskedLinear
 
 
 def change_time_series_signal(signal: torch.Tensor, change_step: int, value: float) -> torch.Tensor:
