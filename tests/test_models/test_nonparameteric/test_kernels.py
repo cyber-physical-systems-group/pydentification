@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pydentification.models.kernel_regression import kernels
+from pydentification.models.nonparametric import kernels
 
 
 @pytest.mark.parametrize("kernel", kernels.COMPACT_CARRIER_KERNELS)

@@ -1,12 +1,12 @@
 import pytest
 import torch
 
-from pydentification.models.kernel_regression.functional import (
+from pydentification.models.nonparametric.functional import (
     kernel_regression,
     kernel_regression_bounds,
     point_wise_distance_tensor,
 )
-from pydentification.models.kernel_regression.kernels import box_kernel
+from pydentification.models.nonparametric.kernels import box_kernel
 
 
 @pytest.mark.parametrize(
