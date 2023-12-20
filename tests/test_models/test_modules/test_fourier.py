@@ -6,7 +6,6 @@ import torch
 
 from pydentification.models.modules.orthogonal import fourier
 
-
 @pytest.fixture
 def time_array():
     return np.linspace(0, 4 * np.pi, 100, endpoint=False)

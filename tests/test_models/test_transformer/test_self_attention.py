@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from pydentification.models.transformer import DynamicalSelfAttention
+from pydentification.models.networks.transformer import DynamicalSelfAttention
 
 
 @pytest.mark.parametrize(
