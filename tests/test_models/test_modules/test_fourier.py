@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from pydentification.models.orthogonal import fourier
+from pydentification.models.modules.orthogonal import fourier
 
 
 @pytest.fixture
