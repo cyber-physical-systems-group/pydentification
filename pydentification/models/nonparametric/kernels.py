@@ -1,7 +1,10 @@
 import math
+from typing import Callable
 
 import torch
 from torch import Tensor
+
+KernelCallable = Callable[[Tensor, float, float], Tensor]
 
 
 @torch.no_grad()

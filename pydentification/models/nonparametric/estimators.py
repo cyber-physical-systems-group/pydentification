@@ -13,6 +13,9 @@ def noise_variance(signal: Tensor, kernel_size: int) -> float:
     if kernel_size % 2 == 0:
         raise ValueError("Kernel size must be odd!")
 
+    if signal.dim() != 1:
+        raise RuntimeError("Input signal for noise variance must be 1D!")
+
     padding = kernel_size // 2  # padding needs to compensate for kernel size so signal has the same length
     # adding artificial batch dimension to allow using nn functions
     smoothed = F.avg_pool1d(signal.unsqueeze(dim=0), kernel_size=kernel_size, stride=1, padding=padding).squeeze()
