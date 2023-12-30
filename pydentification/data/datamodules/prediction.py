@@ -5,6 +5,7 @@ from typing import Iterable, Optional, Union
 
 import lightning.pytorch as pl
 import numpy as np
+import pandas as pd
 import torch
 from numpy.typing import NDArray
 from torch.utils.data import DataLoader, TensorDataset
@@ -104,6 +105,26 @@ class PredictionDataModule(pl.LightningDataModule):
         # use only NODE_RANK = 0
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
         self.prepare_data_per_node = False
+
+    @classmethod
+    def from_pandas(cls, dataset: pd.DataFrame, columns: list[str] | None = None, **kwargs):
+        """
+        Creates PredictionDataModule from pandas dataframe
+
+        :param dataset: pandas dataframe containing measurements of states of the (autonomous) system
+        :param columns: list of columns with state measurements of the system
+        """
+        columns = columns or dataset.columns
+        return cls(dataset[columns].values, **kwargs)
+
+    @classmethod
+    def from_csv(cls, dataset_path: str, columns: list[str] | None = None, **kwargs):
+        """
+        Creates PredictionDataModule from CSV file containing input and output measurements in columns
+        Shortcut for using `pd.read_csv` and `PredictionDataModule.from_pandas` together
+        """
+        dataset = pd.read_csv(dataset_path)
+        return cls.from_pandas(dataset, columns, **kwargs)
 
     def setup(self, stage: str | None = None) -> None:
         """

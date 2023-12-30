@@ -1,19 +1,20 @@
 # typing is ignored due to using dynamic casting between torch, numpy and pandas, which is not properly handled by mypy
 # type: ignore
 from pathlib import Path
-from typing import Iterable, Literal, Optional, Union
+from typing import Iterable, Literal
 
 import lightning.pytorch as pl
 import numpy as np
 import pandas as pd
 import torch
+from numpy.typing import NDArray
 from torch.utils.data import DataLoader, TensorDataset
 
 from ..sequences import generate_time_series_windows, time_series_train_test_split
 from ..splits import draw_validation_indices
 
 
-class CsvDataModule(pl.LightningDataModule):
+class SimulationDataModule(pl.LightningDataModule):
     """
     DataModule for simulation and prediction datasets based on CSV files. The CSV file must contain columns with inputs
     and outputs of the system (not the model, in predictive modelling system *outputs* can be model *inputs*, depending
@@ -32,12 +33,13 @@ class CsvDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        dataset_path: str | Path,
+        inputs: NDArray,
+        outputs: NDArray,
         input_columns: list[str],
         output_columns: list[str],
         *,
-        test_size: Union[int, float] = 0.5,
-        validation_size: Optional[Union[int, float]] = None,
+        test_size: int | float = 0.5,
+        validation_size: int | float | None = None,
         batch_size: int = 32,
         n_workers: int = 0,
         forward_input_window_size: int = 0,
@@ -51,9 +53,8 @@ class CsvDataModule(pl.LightningDataModule):
         backward_output_mask: int = 0,
     ):
         """
-        :param dataset_path: path to CSV file with dataset
-        :param input_columns: names of columns containing systems inputs
-        :param output_columns: names of columns containing systems outputs
+        :param inputs: numpy array containing systems inputs
+        :param outputs: numpy array containing systems outputs
         :param test_size: test size in samples or ration, for details see `time_series_train_test_split`
         :param validation_size: size of validation dataset as a ratio of training data or absolute number of samples
                                 validation samples are drawn from training data
@@ -71,7 +72,8 @@ class CsvDataModule(pl.LightningDataModule):
         """
         super().__init__()
 
-        self.dataset_path = dataset_path
+        self.inputs = inputs
+        self.outputs = outputs
         self.input_columns = input_columns
         self.output_columns = output_columns
         self.test_size = test_size
@@ -104,6 +106,28 @@ class CsvDataModule(pl.LightningDataModule):
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
         self.prepare_data_per_node = False
 
+    @classmethod
+    def from_pandas(cls, dataset: pd.DataFrame, input_columns: list[str], output_columns: list[str], **kwargs):
+        """
+        Creates SimulationDataModule from pandas DataFrame containing input and output measurements in columns
+
+        :param dataset: pandas DataFrame containing input and output measurements in columns
+        :param input_columns: list of columns with input measurements of the system
+        :param output_columns: list of columns with output measurements of the system
+        """
+        inputs = dataset[input_columns].values
+        outputs = dataset[output_columns].values
+        return cls(inputs, outputs, input_columns, output_columns, **kwargs)
+
+    @classmethod
+    def from_csv(cls, dataset_path: str | Path, input_columns: list[str], output_columns: list[str], **kwargs):
+        """
+        Creates SimulationDataModule from CSV file containing input and output measurements in columns
+        Shortcut for using `pd.read_csv` and `SimulationDataModule.from_pandas` together
+        """
+        dataset = pd.read_csv(dataset_path)
+        return cls.from_pandas(dataset, input_columns, output_columns, **kwargs)
+
     def setup(self, stage: Literal["fit", "test", "predict"]) -> None:
         """
         Prepares dataset for training, validation or testing using following steps:
@@ -113,16 +137,12 @@ class CsvDataModule(pl.LightningDataModule):
         4. Split training into training subset and validation randomly
         5. Convert windows to torch tensors and create dataloaders
         """
-        dataset = pd.read_csv(self.dataset_path)
-        train_dataset, test_dataset = time_series_train_test_split(dataset, test_size=self.test_size)
-        self.train_dataset = train_dataset
-        self.test_dataset = test_dataset
+        train_inputs, test_inputs = time_series_train_test_split(self.inputs, test_size=self.test_size)
+        train_outputs, test_outputs = time_series_train_test_split(self.outputs, test_size=self.test_size)
 
         if stage == "fit":
-            inputs = self.train_dataset[self.input_columns].values if self.input_columns else None
-            outputs = self.train_dataset[self.output_columns].values
-
-            windows = generate_time_series_windows(inputs=inputs, outputs=outputs, **self.window_generation_kwargs)
+            kwargs = self.window_generation_kwargs
+            windows = generate_time_series_windows(inputs=train_inputs, outputs=train_outputs, **kwargs)
             n_samples = len(windows["forward_outputs"])  # forward_outputs are always present
 
             validation_index = draw_validation_indices(self.validation_size, n_samples)
@@ -132,10 +152,8 @@ class CsvDataModule(pl.LightningDataModule):
             self.val_samples = [np.take(s, validation_index, axis=0) for s in windows.values() if s.size > 0]
 
         if stage == "test" or stage == "predict":
-            inputs = self.test_dataset[self.input_columns].values if self.input_columns else None
-            outputs = self.test_dataset[self.output_columns].values
-
-            windows = generate_time_series_windows(inputs=inputs, outputs=outputs, **self.window_generation_kwargs)
+            kwargs = self.window_generation_kwargs
+            windows = generate_time_series_windows(inputs=test_inputs, outputs=test_outputs, **kwargs)
             self.test_samples = [s for s in windows.values() if s.size > 0]
 
     def train_dataloader(self) -> Iterable:
