@@ -4,7 +4,7 @@ import torch
 
 from pydentification.data.datamodules.prediction import PredictionDataModule
 from pydentification.metrics import regression_metrics
-from pydentification.models.transformer import DelayLineFeedforward, DynamicalSelfAttention, LinearProjection
+from pydentification.models.networks.transformer import DelayLineFeedforward, DynamicalSelfAttention, LinearProjection
 from pydentification.training.lightning.callbacks import StepAutoRegressionLengthScheduler
 from pydentification.training.lightning.prediction import LightningPredictionTrainingModule
 

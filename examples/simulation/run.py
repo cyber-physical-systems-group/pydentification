@@ -5,15 +5,15 @@ import lightning.pytorch as pl
 import torch
 import wandb
 
-from pydentification.data.datamodules.csv import CsvDataModule
+from pydentification.data.datamodules.simulation import SimulationDataModule
 from pydentification.experiment.reporters import report_metrics, report_prediction_plot, report_trainable_parameters
 from pydentification.metrics import regression_metrics
-from pydentification.models.transformer import DelayLineFeedforward, DynamicalSelfAttention, LinearProjection
+from pydentification.models.networks.transformer import DelayLineFeedforward, DynamicalSelfAttention, LinearProjection
 from pydentification.training.lightning.simulation import LightningSimulationTrainingModule
 
 
 def input_fn():
-    return CsvDataModule(
+    return SimulationDataModule.from_csv(
         # dataset available at https://www.nonlinearbenchmark.org/benchmarks/wiener-hammerstein
         dataset_path="data/WienerHammerBenchmark.csv",
         input_columns=["uBenchMark"],
