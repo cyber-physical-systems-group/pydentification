@@ -1,7 +1,11 @@
-from typing import Any, Optional
+from typing import Any, Callable
 
 import lightning.pytorch as pl
 import torch
+from torch import Tensor
+from torch.nn import Module
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 
 
 class LightningSimulationTrainingModule(pl.LightningModule):
@@ -12,10 +16,10 @@ class LightningSimulationTrainingModule(pl.LightningModule):
 
     def __init__(
         self,
-        module: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
-        loss: Optional[torch.nn.Module] = torch.nn.functional.mse_loss,
+        module: Module,
+        optimizer: Optimizer,
+        lr_scheduler: LRScheduler | None = None,
+        loss: Module | Callable = torch.nn.functional.mse_loss,
     ):
         """
         :param module: initialized module to be wrapped
@@ -32,10 +36,10 @@ class LightningSimulationTrainingModule(pl.LightningModule):
 
         self.save_hyperparameters()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         return self.module(x)
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
         y_hat = self.module(x)  # type: ignore
         loss = self.loss(y_hat, y)
@@ -43,7 +47,7 @@ class LightningSimulationTrainingModule(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
         y_hat = self.module(x)  # type: ignore
         loss = self.loss(y_hat, y)
@@ -54,7 +58,7 @@ class LightningSimulationTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
+    def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, _: int = 0) -> Tensor:
         """
         Warning: this does not work when using distributed training, recommended solution is to predict on CPU or
         use different Lightning wrapper, see: https://github.com/Lightning-AI/lightning/issues/10618

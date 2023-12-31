@@ -1,31 +1,33 @@
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 
-class ResidualConnectionWrapper(torch.nn.Module):
+class ResidualConnectionWrapper(Module):
     """Wrapper for torch module that adds residual connection to the input"""
 
-    def __init__(self, module: torch.nn.Module):
+    def __init__(self, module: Module):
         super().__init__()
         self.module = module
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         return inputs + self.module(inputs)
 
 
-class AutoregressiveResidualWrapper(torch.nn.Module):
+class AutoregressiveResidualWrapper(Module):
     """
     Autoregressive residual wrapper for torch module, which can be used for prediction modelling.
 
     1 step ahead model (given in __init__) is called in the loop (model only predicts residuals) and predictions are
-    autoregressively used as following inputs for N steps, where N is given dynamically as parameter of forward method.
+    auto-regressively used as following inputs for N steps, where N is given dynamically as parameter of forward method.
     """
 
-    def __init__(self, step_ahead_model: torch.nn.Module):
+    def __init__(self, step_ahead_model: Module):
         super().__init__()
 
         self.step_ahead_model = step_ahead_model
 
-    def forward(self, inputs: torch.Tensor, n_predict_time_steps: int = 1) -> torch.Tensor:
+    def forward(self, inputs: Tensor, n_predict_time_steps: int = 1) -> Tensor:
         inputs_and_predictions = inputs  # copy inputs
         n_model_time_steps = inputs.shape[1]
 

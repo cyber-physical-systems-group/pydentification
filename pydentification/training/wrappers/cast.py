@@ -1,10 +1,11 @@
 import torch
+from torch.nn import Module
 
 
-class CastWrapper(torch.nn.Module):
+class CastWrapper(Module):
     """Wrapper for torch module that casts input and output to specified dtypes"""
 
-    def __init__(self, module: torch.nn.Module, in_dtype: torch.dtype, out_dtype: torch.dtype):
+    def __init__(self, module: Module, in_dtype: torch.dtype, out_dtype: torch.dtype):
         """
         :param module: wrapped torch module
         :param in_dtype: dtype of input to the module
