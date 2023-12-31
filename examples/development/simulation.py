@@ -3,7 +3,7 @@ import torch
 
 from pydentification.data.datamodules.simulation import SimulationDataModule
 from pydentification.metrics import regression_metrics
-from pydentification.models.modules.recurrect.gru import TimeSeriesGRU
+from pydentification.models.modules.recurrent.gru import TimeSeriesGRU
 from pydentification.training.lightning.simulation import LightningSimulationTrainingModule
 
 

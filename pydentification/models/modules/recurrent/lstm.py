@@ -1,12 +1,14 @@
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 
-class TimeSeriesLSTM(torch.nn.Module):
+class TimeSeriesLSTM(Module):
     """
     LSTM model for adjusted for time series prediction. It uses stack of LSTM layers and can
     produce output from last layer hidden state or from last time step of another LSTM layer.
 
-    Exact same code as pydentification/models/recurrect/gru.py using LSTM instead of GRU.
+    Exact same code as pydentification/models/recurrent/gru.py using LSTM instead of GRU.
     """
 
     def __init__(
@@ -51,7 +53,7 @@ class TimeSeriesLSTM(torch.nn.Module):
                 dropout=dropout,
             )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         variables, hidden_states = self.lstm(inputs)
 
         if self.predict_from_hidden_state:
