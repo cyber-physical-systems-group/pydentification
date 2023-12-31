@@ -1,6 +1,7 @@
-from typing import Optional, Sequence, Union
+from typing import Sequence, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 def time_series_train_test_split(sequence: Sequence, test_size: Union[int, float]) -> tuple[Sequence, Sequence]:
@@ -17,8 +18,8 @@ def time_series_train_test_split(sequence: Sequence, test_size: Union[int, float
 
 
 def generate_time_series_windows(
-    outputs: np.array,
-    inputs: Optional[np.array] = None,
+    outputs: NDArray,
+    inputs: NDArray | None = None,
     *,
     forward_input_window_size: int = 0,
     backward_input_window_size: int = 0,

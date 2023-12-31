@@ -233,7 +233,7 @@ class PredictionDataModule(pl.LightningDataModule):
         if isinstance(n_forward_time_steps, int):  # return single dataloader
             return self.sample_for_test_or_predict(n_forward_time_steps)
 
-        # returns multiple dataloaders with different number of auto-regressive steps
+        # returns multiple dataloaders with different number of autoregressive steps
         if isinstance(n_forward_time_steps, Iterable):
             return [self.sample_for_test_or_predict(n) for n in n_forward_time_steps]
 
@@ -247,7 +247,7 @@ class PredictionDataModule(pl.LightningDataModule):
         if isinstance(n_forward_time_steps, int):  # return single dataloader
             return self.sample_for_test_or_predict(n_forward_time_steps)
 
-        # returns multiple dataloaders with different number of auto-regressive steps
+        # returns multiple dataloaders with different number of autoregressive steps
         if isinstance(n_forward_time_steps, Iterable):
             return [self.sample_for_test_or_predict(n) for n in n_forward_time_steps]
 
