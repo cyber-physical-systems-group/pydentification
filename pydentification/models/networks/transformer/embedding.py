@@ -1,13 +1,14 @@
 import torch
+from torch import Tensor, nn
 
 
-class ConstantLengthEmbedding(torch.nn.Module):
+class ConstantLengthEmbedding(nn.Module):
     """
     Module converting time series with shape (batch_size, n_time_steps, n_input_state_variables) into time series
     with shape (batch_size, n_time_steps, n_output_state_variables) using learned linear transformation.
 
     This can be used as embedding, which preserves the length of the time series. Such embedding is always causal,
-    since learned matrix is applied to all time steps idependently.
+    since learned matrix is applied to all time steps independently.
     """
 
     def __init__(
@@ -29,15 +30,15 @@ class ConstantLengthEmbedding(torch.nn.Module):
         self.n_input_state_variables = n_input_state_variables
         self.n_output_state_variables = n_output_state_variables
 
-        self.up_projection = torch.nn.Linear(
+        self.up_projection = nn.Linear(
             in_features=self.n_state_variables, out_features=self.n_output_state_variables, bias=bias
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         return self.up_projection(inputs)
 
 
-class ShorteningCausalEmbedding(torch.nn.Module):
+class ShorteningCausalEmbedding(nn.Module):
     """
     Module converting time series with shape (batch_size, n_input_time_steps, n_input_state_variables) into time series
     with shape (batch_size, n_output_time_steps, n_output_state_variables) using two learned linear transformations.
@@ -75,11 +76,11 @@ class ShorteningCausalEmbedding(torch.nn.Module):
         self.n_input_state_variables = n_input_state_variables
         self.n_output_state_variables = n_output_state_variables
 
-        self.up_projection = torch.nn.Linear(
+        self.up_projection = nn.Linear(
             in_features=self.n_input_state_variables, out_features=self.n_output_state_variables, bias=bias
         )
 
-        self.time_projection = torch.nn.Conv1d(
+        self.time_projection = nn.Conv1d(
             in_channels=self.n_output_state_variables,
             out_channels=self.n_output_state_variables,
             kernel_size=self.n_input_time_steps // self.n_output_time_steps,
@@ -87,7 +88,7 @@ class ShorteningCausalEmbedding(torch.nn.Module):
             bias=bias,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         embeddings = self.up_projection(inputs)
         embeddings = torch.permute(embeddings, dims=(0, 2, 1))  # permute to channels first before convolution
         embeddings = self.time_projection(embeddings)

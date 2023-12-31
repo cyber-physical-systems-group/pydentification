@@ -1,12 +1,14 @@
 from functools import cached_property
 
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 from pydentification.models.modules.feedforward import TimeSeriesLinear
 from pydentification.models.modules.orthogonal.fourier import IRFFTModule, RFFTModule
 
 
-class FrequencyLinear(torch.nn.Module):
+class FrequencyLinear(Module):
     def __init__(
         self,
         n_input_time_steps: int,
@@ -67,13 +69,13 @@ class FrequencyLinear(torch.nn.Module):
             return self.n_output_time_steps // 2 + 2  # IRFFT produces self.n_output_time_steps + 1 samples
         return self.n_output_time_steps // 2 + 1
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         outputs = self.stack(inputs)
         # only slices when self.n_output_time_steps is odd
         return outputs.to(self.output_dtype)[:, : self.n_output_time_steps, :]
 
 
-class TimeFrequencyLinear(torch.nn.Module):
+class TimeFrequencyLinear(Module):
     def __init__(
         self,
         n_input_time_steps: int,
@@ -107,7 +109,7 @@ class TimeFrequencyLinear(torch.nn.Module):
             dtype=dtype,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         frequency_outputs = self.frequency_linear(inputs)  # type: ignore
         linear_outputs = self.linear(inputs)  # type: ignore
 

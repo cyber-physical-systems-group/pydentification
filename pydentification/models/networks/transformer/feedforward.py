@@ -1,11 +1,12 @@
 from typing import Callable
 
 import torch
+from torch import Tensor, nn
 
 from .linear import MaskedLinear
 
 
-class DelayLineFeedforward(torch.nn.Module):
+class DelayLineFeedforward(nn.Module):
     """
     Linear transformation of the input signal using delay line, which means single row of weight matrix is multiplied
     with each time step of the input signal. For MIMO systems, different weight matrix is applied for each dimension.
@@ -27,14 +28,14 @@ class DelayLineFeedforward(torch.nn.Module):
         self.bias = bias
         self.skip_connection = skip_connection
 
-        self.flatten = torch.nn.Flatten()
-        self.feedforward = torch.nn.Linear(
+        self.flatten = nn.Flatten()
+        self.feedforward = nn.Linear(
             in_features=self.n_time_steps * self.n_state_variables,
             out_features=self.n_time_steps * self.n_state_variables,
             bias=self.bias,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         variables = self.flatten(inputs)  # flatten time steps
         variables = self.feedforward(variables)
         outputs = torch.reshape(variables, shape=inputs.shape)
@@ -45,7 +46,7 @@ class DelayLineFeedforward(torch.nn.Module):
         return outputs
 
 
-class CausalDelayLineFeedforward(torch.nn.Module):
+class CausalDelayLineFeedforward(nn.Module):
     """
     Linear transformation of the input signal using delay line with casual mask, allowing only connections from future
     to past time steps, which means single row of weight matrix is multiplied with each time step of the input signal.
@@ -65,7 +66,7 @@ class CausalDelayLineFeedforward(torch.nn.Module):
         self.bias = bias
         self.skip_connection = skip_connection
 
-        self.masked_modules = torch.nn.ModuleList(  # modules is reserved name in torch.nn.Module
+        self.masked_modules = torch.nn.ModuleList(  # modules is a reserved name in torch.nn.Module
             [
                 MaskedLinear(in_features=n_time_steps, out_features=n_time_steps, bias=bias)
                 for _ in range(n_state_variables)
@@ -118,18 +119,23 @@ class TransformerFeedforward(torch.nn.Module):
         self.bias = bias
         self.skip_connection = skip_connection
 
-        self.flatten = torch.nn.Flatten()
+        self.flatten = nn.Flatten()
         self.activation = activation
 
-        self.up_projection = torch.nn.Linear(
-            in_features=self.n_state_variables * self.n_time_steps, out_features=self.hidden_dimension, bias=self.bias
+        self.up_projection = nn.Linear(
+            in_features=self.n_state_variables * self.n_time_steps,  # variables and time-steps are flattened into one
+            out_features=self.hidden_dimension,  # hidden dimension contains mixed state variables and time-steps
+            bias=self.bias,
         )
 
-        self.down_projection = torch.nn.Linear(
-            in_features=self.hidden_dimension, out_features=self.n_state_variables * self.n_time_steps, bias=self.bias
+        self.down_projection = nn.Linear(
+            in_features=self.hidden_dimension,
+            # output will be reshaped to variables and time-steps
+            out_features=self.n_state_variables * self.n_time_steps,
+            bias=self.bias,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         variables = self.flatten(inputs)  # flatten time steps
         variables = self.up_projection(variables)
         variables = self.activation(variables)

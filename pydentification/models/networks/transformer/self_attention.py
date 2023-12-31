@@ -1,22 +1,21 @@
 import torch
+from torch import Tensor, nn
 
 
-def generate_square_subsequent_mask(size: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
+def generate_square_subsequent_mask(size: int, device: torch.device, dtype: torch.dtype) -> Tensor:
     """
     Generates a square mask for the sequence. The masked positions are filled with float('-inf').
 
     Source following the PyTorch implementation, but without default values
     https://pytorch.org/docs/stable/_modules/torch/nn/modules/transformer.html#Transformer.generate_square_subsequent_mask
     """
-    return torch.triu(
-        torch.full((size, size), float("-inf"), dtype=dtype, device=device),
-        diagonal=1,
-    )
+    inf_tensor = torch.full((size, size), float("-inf"), dtype=dtype, device=device)
+    return torch.triu(inf_tensor, diagonal=1)
 
 
-class DynamicalSelfAttention(torch.nn.Module):
+class DynamicalSelfAttention(nn.Module):
     """
-    This module computes self-attention for dynamical systems. It is using MultiheadAttention from PyTorch
+    This module computes self-attention for dynamical systems. It is using MultiHeadAttention from PyTorch
     with parameters prepared for running on dynamical systems.
 
     For details see: https://pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html
@@ -36,7 +35,7 @@ class DynamicalSelfAttention(torch.nn.Module):
         :param n_time_steps: number of input and output time steps (they must be equal for self-attention)
         :param n_state_variables: number of state variables in the system or inner representation in the model
                                   equivalent to number of features in the input and embedding dimension in transformers
-        :param n_heads: number of heads in multihead attention
+        :param n_heads: number of heads in multi-head attention
         :param return_attention_weights: if True module will return attention weights
         :param bias: if True bias will be added to the attention
         :param skip_connection: if True skip connection will be added to the output
@@ -52,7 +51,7 @@ class DynamicalSelfAttention(torch.nn.Module):
         self.skip_connection = skip_connection
         self.is_causal = is_causal
 
-        self.attention = torch.nn.MultiheadAttention(
+        self.attention = nn.MultiheadAttention(
             embed_dim=self.n_state_variables,
             num_heads=n_heads,
             bias=bias,
@@ -61,7 +60,7 @@ class DynamicalSelfAttention(torch.nn.Module):
             batch_first=True,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         if self.is_causal:
             # generate upper triangular mask for causal attention
             mask = generate_square_subsequent_mask(size=self.n_time_steps, device=inputs.device, dtype=inputs.dtype)
