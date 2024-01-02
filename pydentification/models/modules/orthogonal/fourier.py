@@ -1,24 +1,17 @@
-from typing import Optional
-
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 
-class RFFTModule(torch.nn.Module):
+class RFFTModule(Module):
     """
-    Module computes Fourier Transform for real input
-    It is used as a building block of FMLP and FLSTM networks
+    Module computes Fourier Transform for real input.
 
-    It processes tensors with shape (B, T, S), where
-        * B - batch
-        * T - time steps
-        * S - state dimensions
-
-    For processing inputs of system with single state dimension pass Tensor with shape: (B, T, 1) (unsqueezed tensor)
+    It processes tensors with shape (BATCH, TIME_STEPS, SYSTEM_DIMENSIONS). For processing inputs of system with single
+    state dimension pass unsqueezed Tensor with shape: (BATCH, TIME_STEPS, 1).
     """
 
-    def __init__(
-        self, n_time_steps: Optional[int] = None, norm: Optional[str] = None, dtype: torch.dtype = torch.cfloat
-    ):
+    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.cfloat):
         """
         :param n_time_steps: number of time to produce steps, see torch.fft.rfft for details
         :param norm: norm of RFFT, see torch.fft.rfft for details
@@ -33,27 +26,20 @@ class RFFTModule(torch.nn.Module):
 
         self.requires_grad_(False)
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         outputs = torch.fft.rfft(inputs, n=self.n_input_time_steps, norm=self.norm, dim=1)
         return outputs.to(self.dtype)
 
 
-class CFFTModule(torch.nn.Module):
+class CFFTModule(Module):
     """
-    Module computes Fourier Transform for any input
-    It is used as a building block of FMLP and FLSTM networks
+    Module computes Fourier Transform for any input.
 
-    It processes tensors with shape (B, T, S), where
-        * B - batch
-        * T - time steps
-        * S - state dimensions
-
-    For processing inputs of system with single state dimension pass Tensor with shape: (B, T, 1) (unsqueezed tensor)
+    It processes tensors with shape (BATCH, TIME_STEPS, SYSTEM_DIMENSIONS). For processing inputs of system with single
+    state dimension pass unsqueezed Tensor with shape: (BATCH, TIME_STEPS, 1).
     """
 
-    def __init__(
-        self, n_time_steps: Optional[int] = None, norm: Optional[str] = None, dtype: torch.dtype = torch.cfloat
-    ):
+    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.cfloat):
         """
         :param n_time_steps: number of time to produce steps, see torch.fft.fft2 for details
         :param norm: norm of FFT, see torch.fft.fft2 for details
@@ -73,22 +59,15 @@ class CFFTModule(torch.nn.Module):
         return outputs.to(self.dtype)
 
 
-class IRFFTModule(torch.nn.Module):
+class IRFFTModule(Module):
     """
-    Module computes Inverse Fourier Transform converting to real output
-    It is used as a building block of FMLP and FLSTM networks
+    Module computes Inverse Fourier Transform converting to real output.
 
-    It processes tensors with shape (B, F, S), where
-        * B - batch
-        * F - frequency modes
-        * S - state dimensions
-
-    For processing inputs of system with single state dimension pass Tensor with shape: (B, F, 1) (unsqueezed tensor)
+    It processes tensors with shape (BATCH, FREQUENCY_MODELS, SYSTEM_DIMENSIONS). For processing inputs of system with
+    single state dimension pass unsqueezed Tensor with shape: (BATCH, FREQUENCY_MODELS, 1).
     """
 
-    def __init__(
-        self, n_time_steps: Optional[int] = None, norm: Optional[str] = None, dtype: torch.dtype = torch.float32
-    ):
+    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.float32):
         """
         :param n_time_steps: number of time to produce steps, see torch.fft.irfft for details
         :param norm: norm of IRFFT, see torch.fft.irfft for details
@@ -102,6 +81,6 @@ class IRFFTModule(torch.nn.Module):
 
         self.requires_grad_(False)
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         outputs = torch.fft.irfft(inputs, n=self.n_time_steps, norm=self.norm, dim=1)
         return outputs.to(self.dtype)

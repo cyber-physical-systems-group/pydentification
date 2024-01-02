@@ -14,7 +14,7 @@ MetricCallable = Callable[[NumericSequence, NumericSequence], Number]
 
 def validate_params(func: MetricCallable) -> MetricCallable:
     """
-    Wrapper validating input parameters by checking array type type and length consistency
+    Wrapper validating input parameters by checking array type and length consistency
     Shorthand for sklearn `validate_param` with default values used in this module
     """
 
@@ -50,12 +50,12 @@ def non_zero_std(func: MetricCallable) -> MetricCallable:
 
 def assemble_multioutput(func: MetricCallable) -> MetricCallable:
     """
-    Assembles metrics for different multioutput aggregation modes.
+    Assembles metrics for different multi-output aggregation modes.
 
     Supports three modes:
-        - 'raw_values' returns a full set of scores in case of multioutput input.
+        - 'raw_values' returns a full set of scores in case of multi-output input.
         - 'uniform_average' scores of all outputs are averaged with uniform weight.
-        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
+        - 'dimension_average' scores of each dimension (for multidimensional systems) are averaged.
     """
 
     @wraps(func)
@@ -91,9 +91,9 @@ def normalized_mean_squared_error(
     :param y_pred: array-like of shape (n_samples,) or (n_samples, n_outputs) with estimated target values
     :param multioutput: defines aggregation in the case of multiple output scores.
                         Can be one of the following strings (default is 'raw_values'):
-                        - 'raw_values' returns a full set of scores in case of multioutput input.
+                        - 'raw_values' returns a full set of scores in case of multi-output input.
                         - 'uniform_average' scores of all outputs are averaged with uniform weight.
-                        - 'dimension_average' scores of each dimension (for multi-dimensional systems) are averaged.
+                        - 'dimension_average' scores of each dimension (for multidimensional systems) are averaged.
 
     :return: normalized mean squared error as single numeric value or array of values for multivariate case
     """
@@ -191,7 +191,7 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
     :param y_true: array-like of shape (n_samples,) or (n_samples, n_outputs) with  ground truth (correct) target values
     :param y_pred: array-like of shape (n_samples,) or (n_samples, n_outputs) with estimated target values
 
-    :warning: assumes `uniform_average` for multioutput
+    :warning: assumes `uniform_average` for multi-output
     """
     multioutput = "uniform_average"
 

@@ -1,12 +1,14 @@
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 
-class TimeSeriesGRU(torch.nn.Module):
+class TimeSeriesGRU(Module):
     """
     GRU model for adjusted for time series prediction. It uses stack of GRU layers and can
     produce output from last layer hidden state or from last time step of another GRU layer.
 
-    Exact same code as pydentification/models/recurrect/lstm.py using GRU instead of LSTM.
+    Exact same code as pydentification/models/recurrent/lstm.py using GRU instead of LSTM.
     """
 
     def __init__(
@@ -51,7 +53,7 @@ class TimeSeriesGRU(torch.nn.Module):
                 dropout=dropout,
             )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward(self, inputs: Tensor) -> Tensor:
         variables, hidden_states = self.gru(inputs)
 
         if self.predict_from_hidden_state:

@@ -1,14 +1,14 @@
 import lightning.pytorch as pl
 import torch
 
-from pydentification.data.datamodules.csv import CsvDataModule
+from pydentification.data.datamodules.simulation import SimulationDataModule
 from pydentification.metrics import regression_metrics
-from pydentification.models.recurrect.gru import TimeSeriesGRU
+from pydentification.models.modules.recurrent.gru import TimeSeriesGRU
 from pydentification.training.lightning.simulation import LightningSimulationTrainingModule
 
 
 def input_fn():
-    return CsvDataModule(
+    return SimulationDataModule.from_csv(
         dataset_path="data/WienerHammerBenchmark.csv",
         input_columns=["uBenchMark"],
         output_columns=["yBenchMark"],

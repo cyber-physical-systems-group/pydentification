@@ -113,10 +113,10 @@ For predictive modelling, following datamodule can be defined. Code to handle th
 model will be acting as time advancing operator.
 
 ```python
-from pydentification.data import CsvDataModule
+from pydentification.data.datamodules.simulation import SimulationDataModule
 
 
-dm = CsvDataModule(
+dm = SimulationDataModule(
     dataset_path="dataset.csv",  # CSV file with data 
     output_columns=["x", "y", "z"],
     test_size=0.5, 
@@ -132,10 +132,10 @@ In complex modelling, where system inputs are used and past outputs are auxiliar
 defined and handled in the model.
 
 ```python
-from pydentification.data import CsvDataModule
+from pydentification.data.datamodules.simulation import SimulationDataModule
 
 
-dm = CsvDataModule(
+dm = SimulationDataModule.from_csv(
     dataset_path="dataset.csv",  # CSV file with data 
     input_columns=["u"],
     output_columns=["x", "y", "z"],

@@ -113,10 +113,10 @@ L = 1  # Lipschitz constant is known for f
 sigma = 0.1  # Variance of the noise in measurements
 delta = 0.1  # Probability of the true function being in bounds
 
-memory_manager = NNDescentMemoryManager(memory=x, targets=y, k=10)  # k is the number of neighbors to return
+memory_manager = NNDescentMemoryManager(memory=x, targets=y)  # k is the number of neighbors to return
 
 for batch in batched(test_x, batch_size=100):  # assume batched exists
-    memory, targets = memory_manager.query_nearest(batch)
+    memory, targets = memory_manager.query_nearest(batch, k=10)
     y_hat = kernel_regression(memory=memory, targets=targets, points=batch, kernel=box_kernel, bandwidth=0.1)
 ```
 
@@ -142,6 +142,5 @@ https://en.wikipedia.org/wiki/Kernel_(statistics)
 
 <a id="4">[4]</a>
 Wei Dong and Moses Charikar and Kai Li (2011)
-li@cs.princeton.ed
 *Efficient K-Nearest Neighbor Graph Construction for Generic Similarity Measures*
 https://www.cs.princeton.edu/cass/papers/www11.pdf

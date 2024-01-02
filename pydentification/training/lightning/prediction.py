@@ -1,7 +1,11 @@
-from typing import Any, Optional
+from typing import Any, Callable
 
 import lightning.pytorch as pl
 import torch
+from torch import Tensor
+from torch.nn import Module
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LRScheduler
 
 
 class LightningPredictionTrainingModule(pl.LightningModule):
@@ -12,10 +16,10 @@ class LightningPredictionTrainingModule(pl.LightningModule):
 
     def __init__(
         self,
-        module: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
-        loss: Optional[torch.nn.Module] = torch.nn.functional.mse_loss,
+        module: Module,
+        optimizer: Optimizer,
+        lr_scheduler: LRScheduler | None = None,
+        loss: Module | Callable = torch.nn.functional.mse_loss,
         teacher_forcing: bool = False,
         full_residual_connection: bool = False,
     ):
@@ -37,7 +41,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
 
         self.save_hyperparameters()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         y_hat = self.module(x)
 
         if self.full_residual_connection:
@@ -45,7 +49,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
 
         return y_hat
 
-    def unroll_forward(self, batch: tuple[torch.Tensor, torch.Tensor], teacher_forcing: bool) -> torch.Tensor:
+    def unroll_forward(self, batch: tuple[Tensor, Tensor], teacher_forcing: bool) -> Tensor:
         x, y = batch
         predictions = torch.empty_like(y)
 
@@ -63,7 +67,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
 
         return predictions
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
 
         predictions = self.unroll_forward(batch, self.teacher_forcing)
@@ -73,7 +77,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
 
         return loss
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
 
         predictions = self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during validation
@@ -86,9 +90,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
-    def predict_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
-    ) -> torch.Tensor:
+    def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, dataloader_idx: int = 0) -> Tensor:
         """Requires using batch of training inputs and targets to know the number of time steps to predict"""
         return self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during prediction
 

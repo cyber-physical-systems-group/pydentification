@@ -10,7 +10,11 @@ import wandb
 from pydentification.data.datamodules.prediction import PredictionDataModule
 from pydentification.experiment.reporters import report_metrics, report_prediction_plot, report_trainable_parameters
 from pydentification.metrics import regression_metrics
-from pydentification.models.transformer import CausalDelayLineFeedforward, DynamicalSelfAttention, LinearProjection
+from pydentification.models.networks.transformer import (
+    CausalDelayLineFeedforward,
+    DynamicalSelfAttention,
+    LinearProjection,
+)
 from pydentification.training.lightning.prediction import LightningPredictionTrainingModule
 
 

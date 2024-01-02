@@ -1,9 +1,11 @@
 import torch
+from torch import Tensor
+from torch.nn import Module
 
 
-class TimeSeriesLinear(torch.nn.Module):
+class TimeSeriesLinear(Module):
     """
-    Linear layer adjusted to process time multi-dimensional series data
+    Linear layer adjusted to process time multidimensional series data
     It processes input with shape (B, Ti, Si) and returns (B, To, So), where:
         * B - batch
         * Ti/To - input/output time steps
@@ -45,8 +47,8 @@ class TimeSeriesLinear(torch.nn.Module):
             dtype=dtype,
         )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        batch_size = inputs.shape[0]
+    def forward(self, inputs: Tensor) -> Tensor:
+        batch_size = inputs.size(0)
 
         variables = inputs.to(self.dtype).flatten(start_dim=1)
         variables = self.linear(variables)

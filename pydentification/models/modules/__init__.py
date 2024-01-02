@@ -1,2 +1,2 @@
 # flake8: noqa
-from . import feedforward, orthogonal, recurrect
+from . import feedforward, orthogonal, recurrent
