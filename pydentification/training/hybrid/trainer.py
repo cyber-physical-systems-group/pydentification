@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import lightning.pytorch as pl
 import torch
@@ -61,7 +61,7 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         optimizer: torch.optim.Optimizer,
         bound_during_training: bool = False,
         bound_crossing_penalty: float = 0.0,
-        lr_scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None,
+        lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     ):
         super().__init__()
 
