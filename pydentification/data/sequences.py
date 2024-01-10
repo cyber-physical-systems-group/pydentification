@@ -106,7 +106,7 @@ def unbatch(batched: Iterable[tuple[Tensor, ...]]) -> tuple[Tensor, ...]:
     """
     for batch_idx, batch in enumerate(batched):
         if batch_idx == 0:  # initialize unbatched list of first batch
-            n_tensors = len(batch) if isinstance(batch, tuple) else 1
+            n_tensors = len(batch) if isinstance(batch, Sequence) else 1
             unbatched = [Tensor() for _ in range(n_tensors)]
 
         for i, tensor in enumerate(batch):
