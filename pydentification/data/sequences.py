@@ -1,7 +1,9 @@
-from typing import Sequence, Union
+from typing import Iterable, Sequence, Union
 
 import numpy as np
+import torch
 from numpy.typing import NDArray
+from torch import Tensor
 
 
 def time_series_train_test_split(sequence: Sequence, test_size: Union[int, float]) -> tuple[Sequence, Sequence]:
@@ -90,3 +92,24 @@ def generate_time_series_windows(
         # fmt: on
 
     return {key: np.asarray(values) for key, values in sequences.items()}
+
+
+def unbatch(batched: Iterable[tuple[Tensor, ...]]) -> tuple[Tensor, ...]:
+    """
+    Converts batched dataset given as iterable (usually lazy iterable) to tuple of tensors
+
+    :example:
+    >>> loader: DataLoader = get_loader(batch_size=32)  # assume get_loader is implemented
+    >>> x, y = unbatch(loader)
+    >>> x.shape
+    ... (320, 10, 1)  # (BATCH_SIZE * N_BATCHES, *DATA_SHAPE)
+    """
+    for batch_idx, batch in enumerate(batched):
+        if batch_idx == 0:  # initialize unbatched list of first batch
+            n_tensors = len(batch) if isinstance(batch, tuple) else 1
+            unbatched = [Tensor() for _ in range(n_tensors)]
+
+        for i, tensor in enumerate(batch):
+            unbatched[i] = torch.cat([unbatched[i], tensor])
+
+    return tuple(unbatched)
