@@ -63,6 +63,14 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         bound_crossing_penalty: float = 0.0,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     ):
+        """
+        :param network: initialized neural network to be wrapped by HybridBoundedSimulationTrainingModule
+        :param estimator: non-parametric estimator to be used for theoretical bounds
+        :param optimizer: initialized optimizer to be used for training
+        :param bound_during_training: flag to enable bounding during training, defaults to False
+        :param bound_crossing_penalty: penalty factor for crossing bounds, see: BoundedMSELoss, defaults to 0.0
+        :param lr_scheduler: initialized learning rate scheduler to be used for training, defaults to None
+        """
         super().__init__()
 
         self.network = network
