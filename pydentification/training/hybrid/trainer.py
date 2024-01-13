@@ -63,6 +63,14 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         bound_crossing_penalty: float = 0.0,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
     ):
+        """
+        :param network: initialized neural network to be wrapped by HybridBoundedSimulationTrainingModule
+        :param estimator: non-parametric estimator to be used for theoretical bounds
+        :param optimizer: initialized optimizer to be used for training
+        :param bound_during_training: flag to enable bounding during training, defaults to False
+        :param bound_crossing_penalty: penalty factor for crossing bounds, see: BoundedMSELoss, defaults to 0.0
+        :param lr_scheduler: initialized learning rate scheduler to be used for training, defaults to None
+        """
         super().__init__()
 
         self.network = network
@@ -113,14 +121,6 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
 
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
-
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
-        """
-        Warning: this does not work when using distributed training, recommended solution is to predict on CPU or
-        use different Lightning wrapper, see: https://github.com/Lightning-AI/lightning/issues/10618
-        """
-        x, _ = batch
-        return self.forward(x)  # type: ignore
 
     def configure_optimizers(self) -> dict[str, Any]:
         config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}

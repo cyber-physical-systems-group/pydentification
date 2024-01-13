@@ -67,6 +67,7 @@ class PredictionDataModule(pl.LightningDataModule):
         n_forward_time_steps: int = 1,
         train_shift: int = 1,
         cache_size: int = 5,
+        dtype: torch.dtype = torch.float32,
     ):
         """
         :param states: measurements of states of the (autonomous) system given as numpy
@@ -78,6 +79,8 @@ class PredictionDataModule(pl.LightningDataModule):
         :param n_backward_time_steps: number of output (state) measurements to include before the prediction start
         :param n_forward_time_steps: number of output (state) measurements to predict
         :param train_shift: number of samples to move the prediction starting point, can generate overlapping samples
+        :param cache_size: size of cache for train and validation datasets
+        :param dtype: dtype of the tensors, defaults to torch.float32
         """
         super().__init__()
 
@@ -105,6 +108,7 @@ class PredictionDataModule(pl.LightningDataModule):
         # use only NODE_RANK = 0
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
         self.prepare_data_per_node = False
+        self.dtype = dtype
 
     @classmethod
     def from_pandas(cls, dataset: pd.DataFrame, columns: list[str] | None = None, **kwargs):
@@ -189,7 +193,9 @@ class PredictionDataModule(pl.LightningDataModule):
             shift=n_forward_time_steps,
         )
 
-        dataset = TensorDataset(*map(torch.from_numpy, [s for s in windows.values() if s.size > 0]))
+        windows = [s for s in windows.values() if s.size > 0]
+        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), windows)
+        dataset = TensorDataset(*tensors)
         self.test_cache.add(key=n_forward_time_steps, dataset=dataset)
 
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
