@@ -122,14 +122,6 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
     def on_train_epoch_end(self):
         self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
-    def predict_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int, _: int = 0) -> torch.Tensor:
-        """
-        Warning: this does not work when using distributed training, recommended solution is to predict on CPU or
-        use different Lightning wrapper, see: https://github.com/Lightning-AI/lightning/issues/10618
-        """
-        x, _ = batch
-        return self.forward(x)  # type: ignore
-
     def configure_optimizers(self) -> dict[str, Any]:
         config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
         return {key: value for key, value in config.items() if value is not None}  # remove None values
