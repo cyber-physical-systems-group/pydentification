@@ -51,6 +51,7 @@ class SimulationDataModule(pl.LightningDataModule):
         backward_input_mask: int = 0,
         forward_output_mask: int = 0,
         backward_output_mask: int = 0,
+        dtype: torch.dtype = torch.float32,
     ):
         """
         :param inputs: numpy array containing systems inputs
@@ -69,6 +70,7 @@ class SimulationDataModule(pl.LightningDataModule):
         :param backward_input_mask: number of masked samples for backward inputs (forcing)
         :param forward_output_mask: number of masked samples for forward outputs (states)
         :param backward_output_mask: number of masked samples for backward outputs (states)
+        :param dtype: torch dtype of the tensors returned by dataloaders, defaults to torch.float32
         """
         super().__init__()
 
@@ -96,8 +98,6 @@ class SimulationDataModule(pl.LightningDataModule):
         )
 
         # cache placeholders
-        self.train_dataset = None
-        self.test_dataset = None
         self.train_samples = None
         self.val_samples = None
         self.test_samples = None
@@ -105,6 +105,7 @@ class SimulationDataModule(pl.LightningDataModule):
         # use only NODE_RANK = 0
         # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
         self.prepare_data_per_node = False
+        self.dtype = dtype
 
     @classmethod
     def from_pandas(cls, dataset: pd.DataFrame, input_columns: list[str], output_columns: list[str], **kwargs):
@@ -158,7 +159,8 @@ class SimulationDataModule(pl.LightningDataModule):
 
     def train_dataloader(self) -> Iterable:
         """Generates training data and returns torch DataLoader"""
-        dataset = TensorDataset(*map(torch.from_numpy, self.train_samples))
+        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.train_samples)
+        dataset = TensorDataset(*tensors)
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
 
     def val_dataloader(self) -> Iterable:
@@ -169,15 +171,18 @@ class SimulationDataModule(pl.LightningDataModule):
         if self.validation_size is None:
             raise ValueError("Validation size must be specified to use validation data loader!")
 
-        dataset = TensorDataset(*map(torch.from_numpy, self.val_samples))
+        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.val_samples)
+        dataset = TensorDataset(*tensors)
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
     def test_dataloader(self) -> Iterable:
         """Generates test data and returns torch DataLoader"""
-        dataset = TensorDataset(*map(torch.from_numpy, self.test_samples))
+        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.test_samples)
+        dataset = TensorDataset(*tensors)
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
 
     def predict_dataloader(self) -> Iterable:
         """Generates test data and returns torch DataLoader for prediction"""
-        dataset = TensorDataset(*map(torch.from_numpy, self.test_samples))
+        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.test_samples)
+        dataset = TensorDataset(*tensors)
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
