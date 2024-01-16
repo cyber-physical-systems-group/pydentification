@@ -10,7 +10,11 @@ class BoundedLinearUnit(Module):
     outside of it to the values of the bounds. Bounds can be scalar of tensor of the same shape as inputs.
     """
 
-    def __init__(self, lower: float | Tensor | None = None, upper: float | Tensor | None = None, ):
+    def __init__(
+        self,
+        lower: float | Tensor | None = None,
+        upper: float | Tensor | None = None,
+    ):
         """
         Bounds given in __init__ are static, applied irrespective of the input bounds
         they can be scalar or tensor of the same shape as inputs
