@@ -8,6 +8,37 @@ from pydentification.models.nonparametric.estimators import noise_variance as no
 from pydentification.models.nonparametric.kernels import KernelCallable
 
 
+def lerpna(x: Tensor, slope: float) -> Tensor:
+    """
+    Linear interpolation of NaN values in a tensor.
+    NaN values are replaced by linear interpolation between points with given slope.
+    """
+    if not torch.isnan(x).any():
+        return x.clone()  # nothing to do
+
+    tensor = x.clone()  # work with clone tensor
+
+    mask = torch.isnan(tensor)
+    (non_nan_indices,) = torch.where(~mask)
+
+    for index in range(1, len(non_nan_indices)):
+        # find current NaN segment
+        start = non_nan_indices[index - 1]
+        end = non_nan_indices[index]
+        segment_length = end - start - 1
+
+        if segment_length > 0:
+            start_value = tensor[start]
+            end_value = start_value + slope * segment_length
+            # assume [0, 1] range
+            weights = torch.linspace(0, 1, steps=segment_length)
+            # linearly interpolate values
+            interpolated_values = torch.lerp(start_value, end_value, weights)
+            tensor[start + 1 : end] = interpolated_values  # noqa: E203
+
+    return tensor
+
+
 class KernelRegression:
     def __init__(
         self,
@@ -100,7 +131,7 @@ class KernelRegression:
         x = self.exponential_decay(x.squeeze(dim=-1))
         x_from_memory, y_from_memory = self.memory_manager.query_nearest(x, k=self.k, epsilon=self.memory_epsilon)
 
-        y_pred, kernels = nonparametric_functional.kernel_regression(
+        predictions, kernels = nonparametric_functional.kernel_regression(
             memory=x_from_memory,
             targets=y_from_memory.squeeze(dim=-1),  # (BATCH, TIME_STEPS) -> (BATCH, )
             inputs=x,
@@ -119,4 +150,6 @@ class KernelRegression:
             dim=1,  # always 1 for SISO dynamical systems
         )
 
-        return y_pred, bounds
+        # L should be given in natural units for the data, so no adjustment is needed for slope in lerp
+        predictions = lerpna(predictions, slope=self.lipschitz_constant)
+        return predictions, bounds
