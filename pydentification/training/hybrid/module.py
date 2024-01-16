@@ -22,17 +22,17 @@ class BoundedMSELoss(Module):
 
         super(BoundedMSELoss, self).__init__()
 
-    def forward(self, y_true: Tensor, y_pred: Tensor, bounds: Tensor) -> float:
+    def forward(self, y_true: Tensor, y_pred: Tensor, lower: Tensor | None = None, upper: Tensor | None = None) -> float:
         loss = F.mse_loss(y_pred, y_true, reduction="mean")
 
-        # if gamma is given as 0, no penalty is applied and BoundedMSELoss is equivalent to MSE
-        # or if bounds are not given, no penalty is applied, for example when used as validation loss
-        if self.gamma == 0 or bounds is None:
+        # if gamma is given as 0 or if bounds are not given,
+        # no penalty is applied and BoundedMSELoss is equivalent to MSE, for example when used as validation loss
+        if self.gamma == 0 or lower is None or upper is None:
             return loss
 
         penalty = torch.where(
-            (y_pred < -bounds) | (y_pred > bounds),  # find predictions outside of bounds
-            torch.min(torch.abs(y_pred + bounds), torch.abs(y_pred - bounds)),  # calculate distance to closer bound
+            (y_pred < lower) | (y_pred > upper),  # find predictions outside of bounds
+            torch.min(torch.abs(y_pred + upper), torch.abs(y_pred - lower)),  # calculate distance to closer bound
             torch.tensor(0.0, device=y_pred.device),  # zero-fill for predictions inside bounds
         )
 
@@ -91,30 +91,35 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         """
         return cls(network=trained_network, **kwargs)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor, return_nonparametric: bool = False) -> Tensor:
         nonparametric_predictions, bounds = self.estimator(x)
         # bounds are returned as distance from nonparametric predictions
-        bounds = nonparametric_predictions + bounds
+        upper_bound = nonparametric_predictions + bounds
+        lower_bound = nonparametric_predictions - bounds
+
         predictions = self.network(x)
 
         if self.bound_during_training:
-            predictions = bounded_linear_unit(predictions, bounds)
+            predictions = bounded_linear_unit(predictions, lower=lower_bound, upper=upper_bound)
 
-        return predictions, bounds
+        if return_nonparametric:
+            return predictions, nonparametric_predictions, lower_bound, upper_bound
 
-    def training_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        return predictions, lower_bound, upper_bound
+
+    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
-        y_hat, bounds = self.forward(x)  # type: ignore
-        loss = self.loss(y_hat, y, bounds)  # type: ignore
+        y_hat, lower_bound, upper_bound = self.forward(x)  # type: ignore
+        loss = self.loss(y_hat, y, lower_bound, upper_bound)  # type: ignore
         self.log("training/train_loss", loss)
 
         return loss
 
-    def validation_step(self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         x, y = batch
         # bounds are not used for validation
-        y_hat, _ = self.forward(x)  # type: ignore
-        loss = self.loss(y_hat, y, bounds=None)  # type: ignore
+        y_hat, _, _ = self.forward(x)  # type: ignore
+        loss = self.loss(y_hat, y)  # type: ignore
         self.log("training/validation_loss", loss)
 
         return loss
