@@ -113,7 +113,7 @@ class KernelRegression:
         # create memory manager to access training data and prevent high memory usage
         # and build index for nearest neighbors search during adapt to save time later
         self.memory_manager = self.memory_manager(x, y)  # type: ignore
-        self.memory_manager._build_index()  # type: ignore
+        self.memory_manager.prepare()  # type: ignore
         self.adapted = True
 
     @torch.no_grad()
