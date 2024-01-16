@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch import Tensor
 
-from pydentification.training.hybrid.loss import BoundedMSELoss
+from pydentification.models.modules.losses import BoundedMSELoss
 
 
 @pytest.mark.parametrize(

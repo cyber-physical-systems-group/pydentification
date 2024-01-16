@@ -4,11 +4,12 @@ import lightning.pytorch as pl
 import torch
 from torch import Tensor
 from torch.nn import Module
+from torch.utils.data import DataLoader
 
 from pydentification.models.modules.activations import bounded_linear_unit
 
 from .estimator import KernelRegression
-from .loss import BoundedMSELoss
+from pydentification.models.modules.losses import BoundedMSELoss
 
 
 class HybridBoundedSimulationTrainingModule(pl.LightningModule):
@@ -101,3 +102,71 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
     def configure_optimizers(self) -> dict[str, Any]:
         config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
         return {key: value for key, value in config.items() if value is not None}  # remove None values
+
+
+class HybridBoundedSimulationInferenceModule(pl.LightningModule):
+    """
+    This class contains inference module for neural network to identify nonlinear dynamical systems or static nonlinear
+    functions with guarantees by using bounded activation incorporating theoretical bounds from the kernel regression.
+
+    It is meant to be used dually with HybridBoundedSimulationTrainingModule and initialized with trained network. The
+    inference module contains settings making sure inference is run correctly.
+
+    :note: this module cannot be used with pl.Trainer
+    """
+
+    def __init__(self, network: Module, estimator: KernelRegression):
+        super().__init__()
+
+        self.network = network
+        self.estimator = estimator
+
+    @classmethod
+    def from_training_module(cls, training_module: HybridBoundedSimulationTrainingModule):
+        """
+        Shortcut for using module with pretrained network. Calling this method is equivalent to passing the trained
+        network directly to `__init__`, but the classmethod can be useful for stating the user intention.
+        """
+        return cls(network=training_module.network, estimator=training_module.estimator)
+
+    @torch.no_grad()
+    def forward(self, x: Tensor) -> Tensor:
+        nonparametric_predictions, bounds = self.estimator(x)
+        # bounds are returned as distance from nonparametric predictions
+        upper_bound = nonparametric_predictions + bounds
+        lower_bound = nonparametric_predictions - bounds
+
+        predictions = self.network(x)
+        return predictions, nonparametric_predictions, lower_bound, upper_bound
+
+    def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, dataloader_idx: int = 0) -> dict[str, Tensor]:
+        """
+        Returns network and nonparametric estimator predictions and bounds for given batch.
+        Outputs are returned as dictionary, so that they can be easily logged to W&B.
+        """
+        x, _ = batch  # type: ignore
+        predictions, nonparametric_predictions, lower_bound, upper_bound = self.forward(x)
+
+        return {
+            "network_predictions": predictions,
+            "nonparametric_predictions": nonparametric_predictions,
+            "lower_bound": lower_bound,
+            "upper_bound": upper_bound,
+        }
+
+    def predict_dataloader(self, dataloader: DataLoader) -> dict[str, Tensor]:
+        """
+        Returns network and nonparametric estimator predictions and bounds for given dataloader.
+        Outputs are returned as dictionary, so that they can be easily logged to W&B.
+        """
+        outputs = []
+
+        for batch_idx, batch in enumerate(dataloader):
+            outputs.append(self.predict_step(batch, batch_idx=batch_idx))
+
+        return {
+            "network_predictions": torch.cat([output["network_predictions"] for output in outputs]),
+            "nonparametric_predictions": torch.cat([output["nonparametric_predictions"] for output in outputs]),
+            "lower_bound": torch.cat([output["lower_bound"] for output in outputs]),
+            "upper_bound": torch.cat([output["upper_bound"] for output in outputs]),
+        }
