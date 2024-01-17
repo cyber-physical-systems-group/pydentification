@@ -170,3 +170,18 @@ class HybridBoundedSimulationInferenceModule(pl.LightningModule):
             "lower_bound": torch.cat([output["lower_bound"] for output in outputs]),
             "upper_bound": torch.cat([output["upper_bound"] for output in outputs]),
         }
+
+    def predict_datamodule(self, dm: pl.LightningDataModule, with_targets: bool = False) -> dict[str, Tensor]:
+        """
+        Runs predict dataloader on test_dataloader or given datamodule. Makes sure data module is set up properly.
+
+        :param dm: lightning data module to run predict on, uses only `test_dataloader`
+        :param with_targets: if True targets are appended as concatenated Tensor to predictions
+        """
+        dm.setup(stage="predict")
+        predictions = self.predict_dataloader(dm.test_dataloader())
+
+        if with_targets:
+            predictions["targets"] = torch.cat([y for x, y in dm.test_dataloader()])
+
+        return predictions
