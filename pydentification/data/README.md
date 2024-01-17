@@ -2,6 +2,13 @@
 
 This module contains the data loading utils for system identification. 
 
+### Contents
+
+* `datamodules` - collection of lightning data modules for loading data, described in detail below
+* `process` - collection of `torch` utils for processing and transforming data
+* `sequences` - collection of function working with `numpy` for generating sequences of data for system identification
+* `splits` - collection of functions for splitting data into train and test sets, works with `numpy` arrays
+
 ## Core
 
 ### Window Generation
