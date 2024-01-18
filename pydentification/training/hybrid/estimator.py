@@ -3,40 +3,10 @@ from typing import Literal
 import torch
 from torch import Tensor
 
+from pydentification.data import decay
 from pydentification.models.nonparametric import functional as nonparametric_functional
 from pydentification.models.nonparametric.estimators import noise_variance as noise_variance_estimator
 from pydentification.models.nonparametric.kernels import KernelCallable
-
-
-def lerpna(x: Tensor, slope: float) -> Tensor:
-    """
-    Linear interpolation of NaN values in a tensor.
-    NaN values are replaced by linear interpolation between points with given slope.
-    """
-    if not torch.isnan(x).any():
-        return x.clone()  # nothing to do
-
-    tensor = x.clone()  # work with clone tensor
-
-    mask = torch.isnan(tensor)
-    (non_nan_indices,) = torch.where(~mask)
-
-    for index in range(1, len(non_nan_indices)):
-        # find current NaN segment
-        start = non_nan_indices[index - 1]
-        end = non_nan_indices[index]
-        segment_length = end - start - 1
-
-        if segment_length > 0:
-            start_value = tensor[start]
-            end_value = start_value + slope * segment_length
-            # assume [0, 1] range
-            weights = torch.linspace(0, 1, steps=segment_length)
-            # linearly interpolate values
-            interpolated_values = torch.lerp(start_value, end_value, weights)
-            tensor[start + 1 : end] = interpolated_values  # noqa: E203
-
-    return tensor
 
 
 class KernelRegression:
@@ -81,12 +51,6 @@ class KernelRegression:
 
         self.adapted: bool = False  # flag to check if model has been adapted to training data
 
-    def exponential_decay(self, x: Tensor) -> Tensor:
-        """Apply exponential decay to batched time-series data."""
-        n_time_steps = x.size(1)  # get number of time steps from input tensor
-        decay_factors = torch.exp(-self.decay * torch.arange(n_time_steps, dtype=torch.float32))
-        return x * decay_factors
-
     @torch.no_grad()
     def adapt(self, x: Tensor, y: Tensor) -> None:
         """
@@ -105,9 +69,9 @@ class KernelRegression:
         y = y.squeeze(dim=-1)  # (BATCH, TIME_STEPS, 1) -> (BATCH, ) for SISO systems
 
         if self.decay > 0.0:  # exponential decay can be applied to the inputs to prioritize recent data in time-series
-            x = self.exponential_decay(x)
+            x = decay(x, gamma=self.decay)
         if self.noise_variance == "estimate":  # estimate noise variance if its value is not given
-            # only 1D signal is supported for noise variance estimation, so y is squeezed to (BATCH, )
+            # only 1D signal is supported for noise variance estimation, so y is squeezed to (BATCH,)
             self.noise_variance = noise_variance_estimator(y.squeeze(dim=-1), kernel_size=self.noise_var_kernel_size)
 
         # create memory manager to access training data and prevent high memory usage
@@ -150,6 +114,4 @@ class KernelRegression:
             dim=1,  # always 1 for SISO dynamical systems
         )
 
-        # L should be given in natural units for the data, so no adjustment is needed for slope in lerp
-        predictions = lerpna(predictions, slope=self.lipschitz_constant)
         return predictions, bounds

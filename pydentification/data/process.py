@@ -4,6 +4,13 @@ import torch
 from torch import Tensor
 
 
+def decay(x: Tensor, gamma: float) -> Tensor:
+    """Apply exponential decay to batched time-series data."""
+    n_time_steps = x.size(1)  # get number of time steps from input tensor
+    factors = torch.exp(gamma * torch.arange(n_time_steps, dtype=x.dtype, device=x.device))
+    return x * factors
+
+
 def lerpna(x: Tensor, slope: float) -> Tensor:
     """
     Linear interpolation of NaN values in a tensor.
