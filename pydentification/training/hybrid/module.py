@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import lightning.pytorch as pl
 import torch
@@ -6,10 +6,12 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader
 
+from pydentification.data.process import lerpna, unbatch
 from pydentification.models.modules.activations import bounded_linear_unit
-
-from .estimator import KernelRegression
 from pydentification.models.modules.losses import BoundedMSELoss
+from pydentification.models.nonparametric import functional as nonparametric_functional
+from pydentification.models.nonparametric.estimators import noise_variance as noise_variance_estimator
+from pydentification.models.nonparametric.kernels import KernelCallable
 
 
 class HybridBoundedSimulationTrainingModule(pl.LightningModule):
@@ -29,29 +31,62 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
     def __init__(
         self,
         network: Module,
-        estimator: KernelRegression,
         optimizer: torch.optim.Optimizer,
+        memory_manager,
+        kernel: KernelCallable,
+        bandwidth: float,
+        lipschitz_constant: float,
+        delta: float,
+        noise_variance: float | Literal["estimate"] = "estimate",
+        k: int = 10,
+        memory_epsilon: float = 0.1,
+        p: int = 2,
+        noise_var_kernel_size: int = 5,  # only used when noise_var is "estimate"
         bound_during_training: bool = False,
         bound_crossing_penalty: float = 0.0,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
+        cpu_only_memory_manager: bool = False,
     ):
         """
         :param network: initialized neural network to be wrapped by HybridBoundedSimulationTrainingModule
-        :param estimator: non-parametric estimator to be used for theoretical bounds
         :param optimizer: initialized optimizer to be used for training
+        :param memory_manager: memory manager class, which will be build in `adapt` and used to access training data
+        :param bandwidth: bandwidth of the kernel of the kernel regression
+        :param kernel: kernel function used for kernel regression, see `pydentification.models.nonparametric.kernels`
+        :param lipschitz_constant: Lipschitz constant of the function to be estimated, needs to be known
+        :param delta: confidence level, defaults to 0.1
+        :param noise_variance: variance of the noise in the function to be estimated, defaults to "estimate"
+        :param k: number of nearest neighbors to use for kernel regression, defaults to 10
+        :param memory_epsilon: epsilon parameter for memory manager, defaults to 0.1
+        :param p: exponent for point-wise distance, defaults to 2
+        :param noise_var_kernel_size: kernel size for noise variance estimator, defaults to 5
         :param bound_during_training: flag to enable bounding during training, defaults to False
         :param bound_crossing_penalty: penalty factor for crossing bounds, see: BoundedMSELoss, defaults to 0.0
         :param lr_scheduler: initialized learning rate scheduler to be used for training, defaults to None
+        :param cpu_only_memory_manager: if True memory manager works only with CPU, when using CUDA all tensors will be
+                                        moved to CPU for queries of the nonparametric memory, defaults to False
         """
         super().__init__()
-
+        # neural network training properties
         self.network = network
-        self.estimator = estimator
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-
         self.bound_during_training = bound_during_training
         self.loss = BoundedMSELoss(gamma=bound_crossing_penalty)
+        # non-parametric estimator properties
+        self.memory_manager = memory_manager
+        self.bandwidth = bandwidth
+        self.kernel = kernel
+        self.lipschitz_constant = lipschitz_constant
+        self.delta = delta
+        self.noise_variance = noise_variance
+        self.k = k
+        self.memory_epsilon = memory_epsilon
+        self.p = p
+        self.noise_var_kernel_size = noise_var_kernel_size
+        # dtype and device properties
+        self.cpu_only_memory_manager = cpu_only_memory_manager
+        self.prepared: bool = False
 
         self.save_hyperparameters()
 
@@ -63,11 +98,92 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         """
         return cls(network=trained_network, **kwargs)
 
+    def setup(self, stage: Literal["fit", "predict"]) -> None:
+        """
+        This method is called by lightning to set up the model before training or prediction.
+        It is used to prepare memory manager for nonparametric estimator with training data.
+        """
+        if not self.prepared:
+            # prepare is called to store training data in memory manager for nonparametric estimator
+            # it always needs to see only training data, even if the model will be called on validation
+            dataloader = self.trainer.datamodule.train_dataloader()
+            memory, targets = unbatch(dataloader)
+            self.prepare(memory, targets)
+            self.prepared = True
+
+    @torch.no_grad()
+    def prepare(self, x: Tensor, y: Tensor):
+        """
+        Prepare memory manager for nonparametric estimator with training data. This method is called by `setup` method
+        automatically, but it can be also called manually to prepare memory manager with custom data.
+        """
+        if x.size(-1) != 1 or y.size(-1) != 1 or y.size(1) != 1:
+            raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
+
+        x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
+        y = y.squeeze(dim=-1)  # (BATCH, TIME_STEPS, 1) -> (BATCH, ) for SISO systems
+
+        if self.cpu_only_memory_manager:
+            x = x.detach().cpu()
+            y = y.detach().cpu()
+
+        if self.noise_variance == "estimate":  # estimate noise variance if its value is not given
+            # only 1D signal is supported for noise variance estimation, so y is squeezed to (BATCH,)
+            self.noise_variance = noise_variance_estimator(y.squeeze(dim=-1), kernel_size=self.noise_var_kernel_size)
+
+        # create memory manager to access training data and prevent high memory usage
+        # and build index for nearest neighbors search during adapt to save time later
+        self.memory_manager = self.memory_manager(x, y)  # type: ignore
+        self.memory_manager.prepare()  # type: ignore
+
+    @torch.no_grad()
+    def nonparametric_forward(self, x: Tensor) -> Tensor:
+        """
+        Part of forward function to predict value at given input points using kernel regression with fixed settings.
+        Shape interface is the same as for models used in `pydentification.models` package.
+        """
+        if x.size(-1) != 1:
+            raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
+
+        x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
+
+        if self.cpu_only_memory_manager:  # when memory manager does not support CUDA operations
+            device = x.device
+            dtype = x.dtype
+            x = x.detach().cpu()
+
+        x_from_memory, y_from_memory = self.memory_manager.query_nearest(x, k=self.k, epsilon=self.memory_epsilon)
+
+        if self.cpu_only_memory_manager:
+            x_from_memory = x_from_memory.to(device=device, dtype=dtype)  # move back to device if needed
+            y_from_memory = y_from_memory.to(device=device, dtype=dtype)
+
+        predictions, kernels = nonparametric_functional.kernel_regression(
+            memory=x_from_memory,
+            targets=y_from_memory.squeeze(dim=-1),  # (BATCH, TIME_STEPS) -> (BATCH, )
+            inputs=x,
+            kernel=self.kernel,
+            bandwidth=self.bandwidth,
+            p=self.p,
+            return_kernel_density=True,  # always return kernel density for bounds, hybrid trainer requires it
+        )
+
+        bounds = nonparametric_functional.kernel_regression_bounds(
+            kernels=kernels,
+            bandwidth=self.bandwidth,
+            delta=self.delta,
+            lipschitz_constant=self.lipschitz_constant,
+            noise_variance=self.noise_variance,
+            dim=1,  # always 1 for SISO dynamical systems
+        )
+
+        return predictions, bounds
+
     def forward(self, x: Tensor, return_nonparametric: bool = False) -> Tensor:
-        nonparametric_predictions, bounds = self.estimator(x)
+        nonparametric_predictions, bounds = self.nonparametric_forward(x)
         # bounds are returned as distance from nonparametric predictions
-        upper_bound = nonparametric_predictions + bounds
-        lower_bound = nonparametric_predictions - bounds
+        upper_bound = lerpna(nonparametric_predictions + bounds, slope=self.lipschitz_constant)
+        lower_bound = lerpna(nonparametric_predictions - bounds, slope=-self.lipschitz_constant)
 
         predictions = self.network(x)
 
@@ -103,49 +219,14 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
         return {key: value for key, value in config.items() if value is not None}  # remove None values
 
-
-class HybridBoundedSimulationInferenceModule(pl.LightningModule):
-    """
-    This class contains inference module for neural network to identify nonlinear dynamical systems or static nonlinear
-    functions with guarantees by using bounded activation incorporating theoretical bounds from the kernel regression.
-
-    It is meant to be used dually with HybridBoundedSimulationTrainingModule and initialized with trained network. The
-    inference module contains settings making sure inference is run correctly.
-
-    :note: this module cannot be used with pl.Trainer
-    """
-
-    def __init__(self, network: Module, estimator: KernelRegression):
-        super().__init__()
-
-        self.network = network
-        self.estimator = estimator
-
-    @classmethod
-    def from_training_module(cls, training_module: HybridBoundedSimulationTrainingModule):
-        """
-        Shortcut for using module with pretrained network. Calling this method is equivalent to passing the trained
-        network directly to `__init__`, but the classmethod can be useful for stating the user intention.
-        """
-        return cls(network=training_module.network, estimator=training_module.estimator)
-
     @torch.no_grad()
-    def forward(self, x: Tensor) -> Tensor:
-        nonparametric_predictions, bounds = self.estimator(x)
-        # bounds are returned as distance from nonparametric predictions
-        upper_bound = nonparametric_predictions + bounds
-        lower_bound = nonparametric_predictions - bounds
-
-        predictions = self.network(x)
-        return predictions, nonparametric_predictions, lower_bound, upper_bound
-
     def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, dataloader_idx: int = 0) -> dict[str, Tensor]:
         """
         Returns network and nonparametric estimator predictions and bounds for given batch.
         Outputs are returned as dictionary, so that they can be easily logged to W&B.
         """
         x, _ = batch  # type: ignore
-        predictions, nonparametric_predictions, lower_bound, upper_bound = self.forward(x)
+        predictions, nonparametric_predictions, lower_bound, upper_bound = self.forward(x, return_nonparametric=True)
 
         return {
             "network_predictions": predictions,
