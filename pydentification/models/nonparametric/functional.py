@@ -84,3 +84,41 @@ def kernel_regression_bounds(
     bounds = lipschitz_constant * bandwidth + 2 * noise_variance * alpha / kappa
 
     return bounds
+
+
+def extrapolate_bounds(inputs: Tensor, bounds: Tensor, lipschitz_constant: float, p: int = 2) -> Tensor:
+    """
+    Extrapolates bounds for missing values using L_p distance between inputs and known values.
+
+    Bounds are extrapolated as L * d(x, x') where x' is the closest known input to the missing value,
+    which means they are linearly diverging from known values with the fastest possible rate, given by L
+
+    :param inputs: points where function is to be predicted from training data, 2D tensors with shape (INPUT_SIZE, DIM)
+    :param bounds: bounds for each input point, 1D tensor with shape (INPUT_SIZE,)
+    :param lipschitz_constant: Lipschitz constant of the function being estimated, `L` in equations
+    :param p: exponent for point-wise distance, defaults to 2
+    """
+    nan_mask = torch.isnan(bounds)
+
+    if not nan_mask.any():
+        return bounds  # all bounds are known - nothing to do
+
+    if nan_mask.all():
+        raise RuntimeError("All bounds are NaN, cannot extrapolate!")
+
+    extrapolated_bounds = bounds.clone()  # work on clone tensor, so original bounds are not modified
+
+    (nan_index,) = torch.where(nan_mask)
+    (not_nan_index,) = torch.where(torch.logical_not(nan_mask))
+    nan_inputs = inputs[nan_index]
+    not_nan_inputs = inputs[not_nan_index]
+    known_bounds = bounds[not_nan_index]
+    # compute L_p distances from nan inputs to non-nan inputs
+    distances = torch.cdist(nan_inputs, not_nan_inputs, p=p)
+
+    # find closest non-nan input for each nan input
+    values, index = distances.min(dim=1)
+    # compute bounds for each nan input as L * d(x, x') where x' is the closest non-nan input
+    extrapolated_bounds[nan_index] = lipschitz_constant * values + known_bounds[index]
+
+    return extrapolated_bounds

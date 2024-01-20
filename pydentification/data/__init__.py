@@ -1,13 +1,17 @@
-from .sequences import generate_time_series_windows, time_series_train_test_split, unbatch
+from .process import decay, unbatch
+from .sequences import generate_time_series_windows, time_series_train_test_split
 from .splits import compute_n_validation_samples, draw_validation_indices
 
 __all__ = [
-    "generate_time_series_windows",
+    # torch utils
+    "decay",
     "unbatch",
+    # windowing utils
+    "generate_time_series_windows",
+    # train-test-validation splitting utils
     "time_series_train_test_split",
     "compute_n_validation_samples",
-    "datamodules",
     "draw_validation_indices",
-    "generate_time_series_windows",
-    "time_series_train_test_split",
+    # datamodules imported as entire module
+    "datamodules",
 ]

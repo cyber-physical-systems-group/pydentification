@@ -87,7 +87,7 @@ class NNDescentMemoryManager(MemoryManager):
         self.index = None  # build deferred until first query, it takes significant amount of time
         self.nn_descent_params = nn_descent_params
 
-    def _build_index(self) -> None:
+    def prepare(self) -> None:
         """Build index for nearest neighbors search over memory using `NNDescent`"""
         self.index = NNDescent(self.memory, **self.nn_descent_params)
         self.index.prepare()
@@ -96,7 +96,7 @@ class NNDescentMemoryManager(MemoryManager):
     def neighbor_graph(self) -> tuple[Tensor, Tensor]:
         """Returns the neighbor graph of the memory points"""
         if self.index is None:
-            self._build_index()
+            self.prepare()
 
         return self.index.neighbor_graph
 
@@ -109,7 +109,7 @@ class NNDescentMemoryManager(MemoryManager):
         :param epsilon: search parameter for NNDescent, see: https://pynndescent.readthedocs.io/en/latest/api.html
         """
         if self.index is None:
-            self._build_index()
+            self.prepare()
 
         indexed, _ = self.index.query(points, k=k, epsilon=epsilon)
         # memory manager returns flat memory for all query points

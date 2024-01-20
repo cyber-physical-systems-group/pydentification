@@ -10,17 +10,25 @@ class BoundedLinearUnit(Module):
     outside of it to the values of the bounds. Bounds can be scalar of tensor of the same shape as inputs.
     """
 
-    def __init__(self, bounds: float | Tensor | None = None):
+    def __init__(
+        self,
+        lower: float | Tensor | None = None,
+        upper: float | Tensor | None = None,
+    ):
         """
-        :param bounds: bounds for the linear unit, can be scalar or tensor of the same shape as inputs
-                       bounds given in __init__ are static, applied irrespective of the input bounds
+        Bounds given in __init__ are static, applied irrespective of the input bounds
+        they can be scalar or tensor of the same shape as inputs
         """
         super(BoundedLinearUnit, self).__init__()
-        self.static_bounds = bounds
+
+        self.static_lower_bound = lower
+        self.static_upper_bound = upper
 
     def forward(self, inputs: Tensor, bounds: float | Tensor | None = None) -> Tensor:
-        bounds = bounds if bounds is not None else self.static_bounds
-        return func.bounded_linear_unit(inputs, bounds)
+        lower = bounds if self.static_lower_bound is None else self.static_lower_bound
+        upper = bounds if self.static_upper_bound is None else self.static_upper_bound
+
+        return func.bounded_linear_unit(inputs, lower=lower, upper=upper)
 
 
 class UniversalActivation(Module):

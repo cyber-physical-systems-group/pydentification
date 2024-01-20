@@ -12,7 +12,7 @@ def random_seed():
 
 
 @pytest.mark.parametrize("variance", [0.05, 0.1, 0.2, 0.5, 1.0, 2.0])
-def test_noise_variance_estimator(variance, random_seed):
+def test_noise_variance_estimator(variance: float, random_seed: int):
     # create signal with noise with given variance
     x = torch.linspace(-2 * math.pi, 2 * math.pi, 1000)
     signal = torch.sin(x) + torch.randn_like(x) * math.sqrt(variance)

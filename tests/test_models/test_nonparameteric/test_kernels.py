@@ -5,7 +5,7 @@ from pydentification.models.nonparametric import kernels
 
 
 @pytest.mark.parametrize("kernel", kernels.COMPACT_CARRIER_KERNELS)
-def test_compact_carrier_kernels(kernel):
+def test_compact_carrier_kernels(kernel: callable):
     """
     Test if kernels stored as compact carrier have no values in range (-2, -1) and (1, 2).
     Compact carrier kernels can only have values in range [-1, 1] when used with bandwidth=1.

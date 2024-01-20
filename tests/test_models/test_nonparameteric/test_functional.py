@@ -1,7 +1,11 @@
+import math
+
 import pytest
 import torch
+from torch import Tensor
 
 from pydentification.models.nonparametric.functional import (
+    extrapolate_bounds,
     kernel_regression,
     kernel_regression_bounds,
     point_wise_distance_tensor,
@@ -39,7 +43,7 @@ from pydentification.models.nonparametric.kernels import box_kernel
         ),
     ],
 )
-def test_point_wise_distance(x, y, p, expected):
+def test_point_wise_distance(x: Tensor, y: Tensor, p: int, expected: Tensor):
     result = point_wise_distance_tensor(x, y, p)  # type: ignore
     assert torch.allclose(result, expected)
 
@@ -70,7 +74,7 @@ def test_point_wise_distance(x, y, p, expected):
         ),
     ),
 )
-def test_kernel_regression(inputs, memory, targets, expected):
+def test_kernel_regression(inputs: Tensor, memory: Tensor, targets: Tensor, expected: Tensor):
     predictions = kernel_regression(inputs, memory, targets, box_kernel, bandwidth=0.1, p=2)
     assert torch.allclose(predictions, expected)
 
@@ -106,7 +110,7 @@ def test_kernel_regression(inputs, memory, targets, expected):
         ),
     ),
 )
-def test_kernel_regression_bounds(inputs, memory, targets, lc, expected):
+def test_kernel_regression_bounds(inputs: Tensor, memory: Tensor, targets: Tensor, lc: float, expected: Tensor):
     h = 0.1  # bandwidth
     predictions, kernels = kernel_regression(
         inputs, memory, targets, box_kernel, bandwidth=h, p=2, return_kernel_density=True
@@ -122,3 +126,41 @@ def test_kernel_regression_bounds(inputs, memory, targets, lc, expected):
 
     assert torch.allclose(bounds, expected)
     assert bounds.shape == (len(inputs),)
+
+
+@pytest.mark.parametrize(
+    ["inputs", "bounds", "lc", "expected"],
+    (
+        # closest bound to the missing is 1 and L=1, so the missing value is extrapolated as 2
+        # this follows from the distances (p=2) between points and maximal change the function can have given by L
+        (
+            torch.Tensor([1, 2, 3, 4, 5]).unsqueeze(dim=-1),
+            torch.Tensor([1, 1, 1, 1, math.nan]),
+            1,
+            torch.Tensor([1, 1, 1, 1, 2]),
+        ),
+        # closest bound to the missing is 1 and L=2, so the missing value is extrapolated as 3
+        (
+            torch.Tensor([1, 2, 3, 4, 5]).unsqueeze(dim=-1),
+            torch.Tensor([1, 1, 1, 1, math.nan]),
+            2,
+            torch.Tensor([1, 1, 1, 1, 3]),
+        ),
+        # multiple missing values are extrapolated
+        (
+            torch.Tensor([1, 2, 3, 4, 5]).unsqueeze(dim=-1),
+            torch.Tensor([math.nan, 1, math.nan, 1, math.nan]),
+            1,
+            torch.Tensor([2, 1, 2, 1, 2]),
+        ),
+        # inputs are 2D - distance from missing point (2, 0) to the closest known point (1, 0) is 1
+        (
+            torch.Tensor([[0, 0], [0, 1], [1, 0], [2, 0]]),
+            torch.Tensor([0, 1, 1, math.nan]),
+            1,
+            torch.Tensor([0, 1, 1, 2]),
+        ),
+    ),
+)
+def test_extrapolate_bounds(inputs: Tensor, bounds: Tensor, lc: float, expected: Tensor) -> Tensor:
+    assert torch.allclose(extrapolate_bounds(inputs, bounds, lc, p=2), expected)
