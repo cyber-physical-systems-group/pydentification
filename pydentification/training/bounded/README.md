@@ -1,4 +1,4 @@
-# Hybrid
+# Bounded Training
 
 This package contains training module for neural network to identify nonlinear dynamical systems or static nonlinear
 functions with guarantees by using bounded activation incorporating theoretical bounds from the kernel regression model.
