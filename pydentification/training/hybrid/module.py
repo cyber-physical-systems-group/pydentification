@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from warnings import warn
 
 import lightning.pytorch as pl
 import torch
@@ -6,7 +7,7 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader
 
-from pydentification.data.process import lerpna, unbatch
+from pydentification.data.process import unbatch
 from pydentification.models.modules.activations import bounded_linear_unit
 from pydentification.models.modules.losses import BoundedMSELoss
 from pydentification.models.nonparametric import functional as nonparametric_functional
@@ -177,13 +178,20 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
             dim=1,  # always 1 for SISO dynamical systems
         )
 
+        # run bounds extrapolation to ensure that bounds are always positive
+        # bounds are diverging linearly with lipschitz constant from known points
+        bounds = nonparametric_functional.extrapolate_bounds(x, bounds, self.lipschitz_constant, p=self.p)
         return predictions, bounds
 
     def forward(self, x: Tensor, return_nonparametric: bool = False) -> Tensor:
         nonparametric_predictions, bounds = self.nonparametric_forward(x)
         # bounds are returned as distance from nonparametric predictions
-        upper_bound = lerpna(nonparametric_predictions + bounds, slope=self.lipschitz_constant)
-        lower_bound = lerpna(nonparametric_predictions - bounds, slope=-self.lipschitz_constant)
+        upper_bound = nonparametric_predictions + bounds
+        lower_bound = nonparametric_predictions - bounds
+
+        if torch.isnan(nonparametric_predictions).all():
+            warn("Nonparametric predictions contain only NaN values! Increase the bandwidth parameter or batch size!")
+            raise RuntimeError("Nonparametric predictions contain only NaN values!")
 
         predictions = self.network(x)
 
