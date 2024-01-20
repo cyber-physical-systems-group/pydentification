@@ -1,5 +1,6 @@
 import pytest
 import torch
+from torch import Tensor
 
 from pydentification.models.nonparametric.functional import (
     kernel_regression,
@@ -39,7 +40,7 @@ from pydentification.models.nonparametric.kernels import box_kernel
         ),
     ],
 )
-def test_point_wise_distance(x, y, p, expected):
+def test_point_wise_distance(x: Tensor, y: Tensor, p: int, expected: Tensor):
     result = point_wise_distance_tensor(x, y, p)  # type: ignore
     assert torch.allclose(result, expected)
 
@@ -70,7 +71,7 @@ def test_point_wise_distance(x, y, p, expected):
         ),
     ),
 )
-def test_kernel_regression(inputs, memory, targets, expected):
+def test_kernel_regression(inputs: Tensor, memory: Tensor, targets: Tensor, expected: Tensor):
     predictions = kernel_regression(inputs, memory, targets, box_kernel, bandwidth=0.1, p=2)
     assert torch.allclose(predictions, expected)
 
@@ -106,7 +107,7 @@ def test_kernel_regression(inputs, memory, targets, expected):
         ),
     ),
 )
-def test_kernel_regression_bounds(inputs, memory, targets, lc, expected):
+def test_kernel_regression_bounds(inputs: Tensor, memory: Tensor, targets: Tensor, lc: float, expected: Tensor):
     h = 0.1  # bandwidth
     predictions, kernels = kernel_regression(
         inputs, memory, targets, box_kernel, bandwidth=h, p=2, return_kernel_density=True
