@@ -2,52 +2,18 @@ import pytest
 import torch
 from torch import Tensor
 
-from pydentification.models.nonparametric.memory import NNDescentMemoryManager, needs_tensor_with_dims
-
-
-@pytest.mark.parametrize(
-    "tensor, dims",
-    [
-        (torch.zeros([2, 2]), (2, 2)),
-        (torch.zeros([5, 5]), (5, None)),
-        (torch.zeros([1, 1]), (1, None)),
-        (torch.zeros([5, 1]), (None, 1)),
-        (torch.zeros([2, 2]), (None, None)),
-        (torch.zeros([2, 2, 2]), (2, 2, 2)),
-    ],
-)
-def test_needs_tensor_with_dims_ok(tensor: Tensor, dims: tuple[int | None]):
-    @needs_tensor_with_dims(*dims)
-    def func(_, t: Tensor) -> bool:  # first argument is self of MemoryManager, which is not used
-        return True  # dummy function to test decorator
-
-    assert func(None, tensor)  # pass None as self and check if error was not raised
-
-
-@pytest.mark.parametrize(
-    "tensor, dims",
-    [
-        (torch.zeros([10, 1, 1]), (None, None)),
-        (torch.zeros([1, 10, 1]), (None, None)),
-        (torch.zeros([10, 1]), (10, 2)),
-        (torch.zeros([10, 1]), (2, 10)),
-        (torch.zeros([10, 1]), (None, 2)),
-    ],
-)
-def test_needs_tensor_with_dims_not_ok(tensor: Tensor, dims: tuple[int | None]):
-    @needs_tensor_with_dims(*dims)
-    def func(_, t: Tensor) -> bool:  # first argument is self of MemoryManager, which is not used
-        return True  # dummy function to test decorator
-
-    with pytest.raises(ValueError):
-        func(None, tensor)  # pass None as self
+from pydentification.models.nonparametric.memory import NNDescentMemoryManager
 
 
 @pytest.fixture(scope="module")
 def linspace_nn_descent_memory_manager():
     memory = torch.linspace(0, 1, 101).unsqueeze(-1)  # 101 points in [0, 1] range spaced by 0.01 and shape [101, 1]
     targets = 2 * memory  # dummy targets
-    return NNDescentMemoryManager(memory, targets, metric="euclidean")
+
+    manager = NNDescentMemoryManager(metric="euclidean")
+    manager.prepare(memory, targets)
+
+    return manager
 
 
 @pytest.mark.parametrize(
