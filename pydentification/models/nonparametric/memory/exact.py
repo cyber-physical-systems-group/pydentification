@@ -66,10 +66,18 @@ class ExactMemoryManager(MemoryManager):
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
-    def __call__(self, points: Tensor, **kwargs) -> [tuple[Tensor, Tensor]]:
+    def __call__(self, points: Tensor, k: int | None = None, r: float | None = None) -> [tuple[Tensor, Tensor]]:
+        """
+        Default call method for ExactMemoryManager is controlled by `__init__`
+        Using __call__ should be done in parameterized setting, where different managers can appear
+        """
         if self.default_call == "nearest":
-            return self.query_nearest(points, k=kwargs.get("k"))
+            if k is None:
+                raise ValueError("K-nearest neighbors k parameter must be specified!")
+            return self.query_nearest(points, k=k)
         elif self.default_call == "radius":
-            return self.query_radius(points, r=kwargs.get("r"))
+            if r is None:
+                raise ValueError("Radius r parameter must be specified!")
+            return self.query_radius(points, r=r)
 
         raise ValueError(f"Unknown default call method: {self.default_call}!")

@@ -71,5 +71,12 @@ class NNDescentMemoryManager(MemoryManager):
     def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
         raise NotImplementedError("Radius query is not implemented for NNDescentMemoryManager!")
 
-    def __call__(self, points: Tensor, **kwargs) -> [tuple[Tensor, Tensor]]:
-        return self.query_nearest(points, k=kwargs.get("k"), epsilon=kwargs.get("epsilon"))
+    def __call__(self, points: Tensor, k: int | None = None, epsilon: float | None = None) -> [tuple[Tensor, Tensor]]:
+        """
+        Default call method for NNDescentMemoryManager is using k-nearest neighbors search
+        Using __call__ should be done in parameterized setting, where different managers can appear
+        """
+        if k is None:
+            raise ValueError("K-nearest neighbors k parameter must be specified!")
+
+        return self.query_nearest(points, k=k, epsilon=epsilon)
