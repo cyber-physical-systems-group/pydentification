@@ -6,7 +6,7 @@ from pydentification.models.nonparametric.memory import NNDescentMemoryManager
 
 
 @pytest.fixture(scope="module")
-def linspace_nn_descent_memory_manager():
+def nn_descent_memory_manager():
     memory = torch.linspace(0, 1, 101).unsqueeze(-1)  # 101 points in [0, 1] range spaced by 0.01 and shape [101, 1]
     targets = 2 * memory  # dummy targets
 
@@ -37,7 +37,7 @@ def linspace_nn_descent_memory_manager():
         (torch.tensor([[0.501], [0.2501]]), 3, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test_nn_descent_memory_manager(points: Tensor, k: int, expected: Tensor, linspace_nn_descent_memory_manager):
+def test_nn_descent_memory_manager(points: Tensor, k: int, expected: Tensor, nn_descent_memory_manager):
     # query with high epsilon to get certain results
-    memory, _ = linspace_nn_descent_memory_manager.query_nearest(points, k, epsilon=1.0)  # ignore targets
+    memory, _ = nn_descent_memory_manager.query_nearest(points, k, epsilon=1.0)  # ignore targets
     torch.testing.assert_close(memory, expected)
