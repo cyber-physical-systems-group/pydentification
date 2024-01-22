@@ -58,6 +58,12 @@ class NNDescentMemoryManager(MemoryManager):
         :param k: number of nearest neighbours to return
         :param epsilon: search parameter for NNDescent, see: https://pynndescent.readthedocs.io/en/latest/api.html
         """
+        return_device = self.memory.device
+
+        if points.device != self.memory.device:
+            return_device = points.device  # remember device where points came from
+            points = points.to(self.memory.device)  # move points to memory device, since NNDescent only supports CPU
+
         if self.index is None:
             raise RuntimeError("Index is not built, call prepare method first!")
 
@@ -66,7 +72,10 @@ class NNDescentMemoryManager(MemoryManager):
         # duplicates are removed and the dimensionality is reduced to 1
         indexed = torch.unique(torch.from_numpy(indexed.flatten()))
         # return found nearest points from memory and collect from all target tensors corresponding to them
-        return self.memory[indexed, :], *(target[indexed, :] for target in self.targets)
+        memory = self.memory[indexed, :].to(return_device)  # cast back to device where points came from
+        targets = tuple(target[indexed, :].to(return_device) for target in self.targets)
+
+        return memory, *targets
 
     def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
         raise NotImplementedError("Radius query is not implemented for NNDescentMemoryManager!")
