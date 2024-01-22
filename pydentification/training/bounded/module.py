@@ -44,7 +44,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         lipschitz_constant: float,
         delta: float,
         noise_variance: float | Literal["estimate"] = "estimate",
-        k: int = 10,
+        k: int | None = None,
+        r: float | None = None,
         memory_epsilon: float = 0.1,
         p: int = 2,
         noise_var_kernel_size: int = 5,  # only used when noise_var is "estimate"
@@ -63,7 +64,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         :param lipschitz_constant: Lipschitz constant of the function to be estimated, needs to be known
         :param delta: confidence level, defaults to 0.1
         :param noise_variance: variance of the noise in the function to be estimated, defaults to "estimate"
-        :param k: number of nearest neighbors to use for kernel regression, defaults to 10
+        :param k: number of nearest neighbors to use for kernel regression, either k or r needs to be defined
+        :param r: radius of the neighborhood to use for kernel regression, either k or r needs to be defined
         :param memory_epsilon: epsilon parameter for memory manager, defaults to 0.1
         :param p: exponent for point-wise distance, defaults to 2
         :param noise_var_kernel_size: kernel size for noise variance estimator, defaults to 5
@@ -89,13 +91,19 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         self.delta = delta
         self.noise_variance = noise_variance
         self.k = k
+        self.r = r
         self.memory_epsilon = memory_epsilon
         self.p = p
         self.noise_var_kernel_size = noise_var_kernel_size
+
         # dtype and device properties
         self.memory_device = memory_device
         self.predict_device = predict_device
         self.prepared: bool = False
+
+        # validations
+        if k is None and r is None:
+            raise ValueError("Either k or radius needs to be defined!")
 
         self.save_hyperparameters()
 
@@ -168,7 +176,7 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
             raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
 
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
-        x_from_memory, y_from_memory = self.memory_manager.query_nearest(x, k=self.k)
+        x_from_memory, y_from_memory = self.memory_manager(x, k=self.k, r=self.r, epsilon=self.memory_epsilon)
 
         predictions, kernels = nonparametric_functional.kernel_regression(
             memory=x_from_memory,
