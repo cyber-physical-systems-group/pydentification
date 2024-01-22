@@ -71,7 +71,9 @@ class ExactMemoryManager(MemoryManager):
         self.memory = self.memory.to(device)
         self.targets = tuple(target.to(device) for target in self.targets)
 
-    def __call__(self, points: Tensor, k: int | None = None, r: float | None = None) -> [tuple[Tensor, Tensor]]:
+    def __call__(
+        self, points: Tensor, k: int | None = None, r: float | None = None, *args, **kwargs
+    ) -> [tuple[Tensor, Tensor]]:
         """
         Default call method for ExactMemoryManager is controlled by `__init__`
         Using __call__ should be done in parameterized setting, where different managers can appear
