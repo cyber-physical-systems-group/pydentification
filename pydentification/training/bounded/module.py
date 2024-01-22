@@ -27,6 +27,11 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
     are never outside of those theoretical bounds.
 
     Bounds can be also used as penalty during training, which is implemented in this class using `BoundedMSELoss`.
+
+    This module contains non-trivial torch device settings, since memory manger and network are independent.
+    `memory_device` contains device used for memory manager, which is used to access training data and for
+    non-parametric estimator and `predict_device` contains device used for inference, which is used for network and
+    memory, which can be CPU or GPU (if memory manager supports it).
     """
 
     def __init__(
@@ -46,7 +51,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         bound_during_training: bool = False,
         bound_crossing_penalty: float = 0.0,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
-        cpu_only_memory_manager: bool = False,
+        memory_device: Literal["cpu", "cuda"] = "cpu",
+        predict_device: Literal["cpu", "cuda"] = "cpu",
     ):
         """
         :param network: initialized neural network to be wrapped by HybridBoundedSimulationTrainingModule
@@ -64,8 +70,9 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         :param bound_during_training: flag to enable bounding during training, defaults to False
         :param bound_crossing_penalty: penalty factor for crossing bounds, see: BoundedMSELoss, defaults to 0.0
         :param lr_scheduler: initialized learning rate scheduler to be used for training, defaults to None
-        :param cpu_only_memory_manager: if True memory manager works only with CPU, when using CUDA all tensors will be
-                                        moved to CPU for queries of the nonparametric memory, defaults to False
+        :param memory_device: device to use for memory manager, defaults to "cpu"
+                              currently only single device strategy is supported, due to memory manager limitations
+        :param predict_device: device to use for inference, needs to be supported by memory manager, defaults to "cpu"
         """
         super().__init__()
         # neural network training properties
@@ -86,7 +93,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         self.p = p
         self.noise_var_kernel_size = noise_var_kernel_size
         # dtype and device properties
-        self.cpu_only_memory_manager = cpu_only_memory_manager
+        self.memory_device = memory_device
+        self.predict_device = predict_device
         self.prepared: bool = False
 
         self.save_hyperparameters()
@@ -112,6 +120,15 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
             self.prepare(memory, targets)
             self.prepared = True
 
+        if stage == "predict":
+            # by default network is on CPU after training
+            # it can be moved to CUDA if needed
+            self.network.to(torch.device(self.predict_device))
+            # move memory manager to device used for inference
+            # only if it supports it and used it during training
+            if self.predict_device == self.memory_device:
+                self.memory_manager.to(torch.device(self.predict_device))
+
     @torch.no_grad()
     def prepare(self, x: Tensor, y: Tensor):
         """
@@ -124,18 +141,22 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
         y = y.squeeze(dim=-1)  # (BATCH, TIME_STEPS, 1) -> (BATCH, ) for SISO systems
 
-        if self.cpu_only_memory_manager:
-            x = x.detach().cpu()
-            y = y.detach().cpu()
-
         if self.noise_variance == "estimate":  # estimate noise variance if its value is not given
             # only 1D signal is supported for noise variance estimation, so y is squeezed to (BATCH,)
             self.noise_variance = noise_variance_estimator(y.squeeze(dim=-1), kernel_size=self.noise_var_kernel_size)
 
+        if type(self.trainer.strategy).__name__ != "SingleDeviceStrategy":
+            raise RuntimeError(f"{self.__class__.__name__} can only be used with single device strategy!")
+
+        if self.memory_device == "cuda":
+            # by default setup (which calls prepare) is running on CPU before tensors are moved to devices
+            # some memory managers can handle GPU operations, but this needs moving entire dataset to device
+            x = x.cuda()
+            y = y.cuda()
+
         # create memory manager to access training data and prevent high memory usage
         # and build index for nearest neighbors search during adapt to save time later
-        self.memory_manager = self.memory_manager(x, y)  # type: ignore
-        self.memory_manager.prepare()  # type: ignore
+        self.memory_manager.prepare(x, y)  # type: ignore
 
     @torch.no_grad()
     def nonparametric_forward(self, x: Tensor) -> Tensor:
@@ -147,17 +168,7 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
             raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
 
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
-
-        if self.cpu_only_memory_manager:  # when memory manager does not support CUDA operations
-            device = x.device
-            dtype = x.dtype
-            x = x.detach().cpu()
-
-        x_from_memory, y_from_memory = self.memory_manager.query_nearest(x, k=self.k, epsilon=self.memory_epsilon)
-
-        if self.cpu_only_memory_manager:
-            x_from_memory = x_from_memory.to(device=device, dtype=dtype)  # move back to device if needed
-            y_from_memory = y_from_memory.to(device=device, dtype=dtype)
+        x_from_memory, y_from_memory = self.memory_manager.query_nearest(x, k=self.k)
 
         predictions, kernels = nonparametric_functional.kernel_regression(
             memory=x_from_memory,
@@ -232,6 +243,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         """
         Returns network and nonparametric estimator predictions and bounds for given batch.
         Outputs are returned as dictionary, so that they can be easily logged to W&B.
+
+        :note: batch needs to be on `predict_device`
         """
         x, _ = batch  # type: ignore
         predictions, nonparametric_predictions, lower_bound, upper_bound = self.forward(x, return_nonparametric=True)
@@ -251,6 +264,9 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         outputs = []
 
         for batch_idx, batch in enumerate(dataloader):
+            if self.predict_device == "cuda":
+                batch = tuple(tensor.cuda() for tensor in batch)
+
             outputs.append(self.predict_step(batch, batch_idx=batch_idx))
 
         return {
