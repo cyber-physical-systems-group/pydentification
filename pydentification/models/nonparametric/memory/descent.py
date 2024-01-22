@@ -71,6 +71,10 @@ class NNDescentMemoryManager(MemoryManager):
     def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
         raise NotImplementedError("Radius query is not implemented for NNDescentMemoryManager!")
 
+    def to(self, device: torch.device) -> None:
+        if device != torch.device("cpu"):
+            raise ValueError("NNDescentMemoryManager only supports CPU device!")
+
     def __call__(self, points: Tensor, k: int | None = None, epsilon: float | None = None) -> [tuple[Tensor, Tensor]]:
         """
         Default call method for NNDescentMemoryManager is using k-nearest neighbors search

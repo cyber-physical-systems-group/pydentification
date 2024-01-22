@@ -66,6 +66,11 @@ class ExactMemoryManager(MemoryManager):
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
+    def to(self, device: torch.device) -> None:
+        """Move memory manager to given device"""
+        self.memory = self.memory.to(device)
+        self.targets = tuple(target.to(device) for target in self.targets)
+
     def __call__(self, points: Tensor, k: int | None = None, r: float | None = None) -> [tuple[Tensor, Tensor]]:
         """
         Default call method for ExactMemoryManager is controlled by `__init__`
