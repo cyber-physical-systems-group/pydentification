@@ -13,6 +13,7 @@ from pydentification.models.modules.losses import BoundedMSELoss
 from pydentification.models.nonparametric import functional as nonparametric_functional
 from pydentification.models.nonparametric.estimators import noise_variance as noise_variance_estimator
 from pydentification.models.nonparametric.kernels import KernelCallable
+from pydentification.training.wrappers.inits import reset_parameters
 
 
 class HybridBoundedSimulationTrainingModule(pl.LightningModule):
@@ -51,6 +52,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         noise_var_kernel_size: int = 5,  # only used when noise_var is "estimate"
         bound_during_training: bool = False,
         bound_crossing_penalty: float = 0.0,
+        max_reinit: int = 0,
+        reinit_relative_tolerance: float = 0.0,
         lr_scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
         memory_device: Literal["cpu", "cuda"] = "cpu",
         predict_device: Literal["cpu", "cuda"] = "cpu",
@@ -71,6 +74,8 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         :param noise_var_kernel_size: kernel size for noise variance estimator, defaults to 5
         :param bound_during_training: flag to enable bounding during training, defaults to False
         :param bound_crossing_penalty: penalty factor for crossing bounds, see: BoundedMSELoss, defaults to 0.0
+        :param max_reinit: maximum number of reinitializations of the network before training, defaults to 0
+        :param reinit_relative_tolerance: relative tolerance for crossing bounds during reinit, defaults to 0.0
         :param lr_scheduler: initialized learning rate scheduler to be used for training, defaults to None
         :param memory_device: device to use for memory manager, defaults to "cpu"
                               currently only single device strategy is supported, due to memory manager limitations
@@ -81,7 +86,10 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         self.network = network
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+        # training properties
         self.bound_during_training = bound_during_training
+        self.max_reinit = max_reinit
+        self.reinit_relative_tolerance = reinit_relative_tolerance
         self.loss = BoundedMSELoss(gamma=bound_crossing_penalty)
         # non-parametric estimator properties
         self.memory_manager = memory_manager
@@ -165,6 +173,33 @@ class HybridBoundedSimulationTrainingModule(pl.LightningModule):
         # create memory manager to access training data and prevent high memory usage
         # and build index for nearest neighbors search during adapt to save time later
         self.memory_manager.prepare(x, y)  # type: ignore
+
+    def on_train_start(self):
+        """
+        Reinitialize network before training if predictions are outside of bounds. This can improve the training speed,
+        since just by running single validation without computing gradients, converge can be improved.
+        """
+        if self.max_reinit > 0:
+            for n in range(self.max_reinit):
+                # get single batch from validation dataloader
+                x, _ = next(iter(self.trainer.datamodule.val_dataloader()))
+
+                with torch.no_grad():
+                    predictions, _, lower_bound, upper_bound = self.forward(x, return_nonparametric=True)
+
+                # check if predictions of initialized network before training are within bounds
+                # if more than `reinit_relative_tolerance` of predictions are outside of bounds, reinitialize network
+                predictions = predictions.squeeze()
+                bounds_crossing = (lower_bound > predictions) | (upper_bound < predictions)
+                crossed_ratio = torch.sum(bounds_crossing.to(torch.int32)) / bounds_crossing.numel()  # type: ignore
+
+                self.log("training/init_bound_cross_ratio", crossed_ratio)
+
+                if crossed_ratio <= self.reinit_relative_tolerance:
+                    return  # stop reinitializing if bounds are not crossed
+                else:
+                    # reinitialize network if bounds are crossed
+                    self.network.apply(reset_parameters)
 
     @torch.no_grad()
     def nonparametric_forward(self, x: Tensor) -> Tensor:
