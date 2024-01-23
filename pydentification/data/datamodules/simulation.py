@@ -35,8 +35,6 @@ class SimulationDataModule(pl.LightningDataModule):
         self,
         inputs: NDArray,
         outputs: NDArray,
-        input_columns: list[str],
-        output_columns: list[str],
         *,
         test_size: int | float = 0.5,
         validation_size: int | float | None = None,
@@ -76,8 +74,6 @@ class SimulationDataModule(pl.LightningDataModule):
 
         self.inputs = inputs
         self.outputs = outputs
-        self.input_columns = input_columns
-        self.output_columns = output_columns
         self.test_size = test_size
         self.validation_size = validation_size
 
@@ -118,7 +114,7 @@ class SimulationDataModule(pl.LightningDataModule):
         """
         inputs = dataset[input_columns].values
         outputs = dataset[output_columns].values
-        return cls(inputs, outputs, input_columns, output_columns, **kwargs)
+        return cls(inputs, outputs, **kwargs)
 
     @classmethod
     def from_csv(cls, dataset_path: str | Path, input_columns: list[str], output_columns: list[str], **kwargs):
