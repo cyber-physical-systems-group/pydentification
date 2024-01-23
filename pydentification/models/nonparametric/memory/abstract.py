@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 from typing import Any, Callable
 
+import torch
 from torch import Tensor
 
 
@@ -62,6 +63,11 @@ class MemoryManager(ABC):
         :param points: input points for which to find neighbours
         :param r: radius of the neighbourhood
         """
+        ...
+
+    @abstractmethod
+    def to(self, device: torch.device) -> None:
+        """Move memory manager to given device"""
         ...
 
     @abstractmethod
