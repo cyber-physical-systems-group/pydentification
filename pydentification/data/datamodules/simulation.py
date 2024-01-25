@@ -8,17 +8,150 @@ import numpy as np
 import pandas as pd
 import torch
 from numpy.typing import NDArray
+from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 
 from ..sequences import generate_time_series_windows, time_series_train_test_split
 from ..splits import draw_validation_indices
 
 
+def dataloader_from_numpy(
+    arrays: Iterable[NDArray],
+    batch_size: int,
+    n_workers: int = 0,
+    shuffle: bool = True,
+    dtype: torch.dtype = torch.float32,
+):
+    """
+    Creates torch DataLoader from any number numpy arrays
+
+    :param arrays: iterable of numpy arrays
+    :param batch_size: batch size used to train and test the model by torch DataLoaders
+    :param n_workers: number of workers used by torch DataLoaders
+    :param shuffle: whether to shuffle the dataset
+    :param dtype: torch dtype of the tensors returned by dataloaders, defaults to torch.float32
+    """
+    tensors = map(lambda sample: torch.from_numpy(sample).to(dtype), arrays)
+    dataset = TensorDataset(*tensors)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=n_workers)
+
+
+class StaticSimulationDataModule(pl.LightningDataModule):
+    """
+    Simulation modelling can be applied to static systems, which is equivalent to curve fitting from dataset
+    perspective. This datamodule can be used to generate dataset for such problems.
+    """
+
+    def __init__(
+        self,
+        inputs: NDArray,
+        outputs: NDArray,
+        *,
+        test_size: int | float = 0.5,
+        test_split: Literal["index", "random"] = "random",
+        validation_size: int | float | None = None,
+        batch_size: int = 32,
+        dtype: torch.dtype = torch.float32,
+    ):
+        self.inputs = inputs
+        self.outputs = outputs
+
+        self.test_size = test_size
+        self.test_split = test_split
+        self.validation_size = validation_size
+        self.batch_size = batch_size
+
+        # cache placeholders
+        self.train_samples = None
+        self.val_samples = None
+        self.test_samples = None
+
+        # use only NODE_RANK = 0
+        # see: https://lightning.ai/docs/pytorch/stable/data/datamodule.html#prepare-data-per-node
+        self.prepare_data_per_node = False
+        self.dtype = dtype
+
+    def setup(self, stage: Literal["fit", "predict"]) -> None:
+        """
+        Prepares dataset for training or testing using following steps:
+        1. Split into train and test based on the time series
+        2. Split training into training subset and validation randomly
+        3. Store cached samples for dataloaders
+        """
+        if self.test_split == "random":
+            train_inputs, test_inputs, train_outputs, test_outputs = train_test_split(
+                self.inputs, self.outputs, test_size=self.test_size
+            )
+
+            if self.validation_size is not None:
+                train_inputs, val_inputs, train_outputs, val_outputs = train_test_split(
+                    train_inputs, train_outputs, test_size=self.validation_size
+                )
+
+                self.train_samples = [train_inputs, train_outputs]
+                self.val_samples = [val_inputs, val_outputs]
+            else:
+                self.train_samples = [train_inputs, train_outputs]
+                self.val_samples = [[], []]
+
+            self.test_samples = [test_inputs, test_outputs]
+
+        elif self.test_split == "index":
+            train_inputs, test_inputs = time_series_train_test_split(self.inputs, test_size=self.test_size)
+            train_outputs, test_outputs = time_series_train_test_split(self.outputs, test_size=self.test_size)
+
+            if self.validation_size is not None:
+                train_inputs, val_inputs = time_series_train_test_split(train_inputs, test_size=self.validation_size)
+                train_outputs, val_outputs = time_series_train_test_split(train_outputs, test_size=self.validation_size)
+            else:
+                val_inputs, val_outputs = [], []
+
+            self.train_samples = [train_inputs, train_outputs]
+            self.val_samples = [val_inputs, val_outputs]
+            self.test_samples = [test_inputs, test_outputs]
+
+    @classmethod
+    def from_pandas(cls, dataset: pd.DataFrame, input_columns: list[str], output_columns: list[str], **kwargs):
+        """
+        Creates SimulationDataModule from pandas DataFrame containing input and output measurements in columns
+
+        :param dataset: pandas DataFrame containing input and output measurements in columns
+        :param input_columns: list of columns with input measurements of the system
+        :param output_columns: list of columns with output measurements of the system
+        """
+        inputs = dataset[input_columns].values
+        outputs = dataset[output_columns].values
+        return cls(inputs, outputs, **kwargs)
+
+    @classmethod
+    def from_csv(cls, dataset_path: str | Path, input_columns: list[str], output_columns: list[str], **kwargs):
+        """
+        Creates SimulationDataModule from CSV file containing input and output measurements in columns
+        Shortcut for using `pd.read_csv` and `SimulationDataModule.from_pandas` together
+        """
+        dataset = pd.read_csv(dataset_path)
+        return cls.from_pandas(dataset, input_columns, output_columns, **kwargs)
+
+    def train_dataloader(self) -> Iterable:
+        return dataloader_from_numpy(self.train_samples, self.batch_size, shuffle=True, dtype=self.dtype)
+
+    def val_dataloader(self) -> Iterable:
+        if self.val_samples is None:
+            raise ValueError("Validation size must be specified to use validation data loader!")
+
+        return dataloader_from_numpy(self.val_samples, self.batch_size, shuffle=False, dtype=self.dtype)
+
+    def test_dataloader(self) -> Iterable:
+        return dataloader_from_numpy(self.test_samples, self.batch_size, shuffle=False, dtype=self.dtype)
+
+    def predict_dataloader(self) -> Iterable:
+        return dataloader_from_numpy(self.test_samples, self.batch_size, shuffle=False, dtype=self.dtype)
+
+
 class SimulationDataModule(pl.LightningDataModule):
     """
-    DataModule for simulation and prediction datasets based on CSV files. The CSV file must contain columns with inputs
-    and outputs of the system (not the model, in predictive modelling system *outputs* can be model *inputs*, depending
-    on the time shift). Windows are generated based on parameters passed to `generate_time_series_windows` function.
+    DataModule for simulation modelling of dynamical systems.
+    Windows are generated based on parameters passed to `generate_time_series_windows` function.
 
     The dataloaders return batches of windows, where each window is one of the system inputs or outputs with time-shifts
     They are returned in following order (can be more than 2, but if given sequence is not used it will not be present):
@@ -128,11 +261,10 @@ class SimulationDataModule(pl.LightningDataModule):
     def setup(self, stage: Literal["fit", "test", "predict"]) -> None:
         """
         Prepares dataset for training, validation or testing using following steps:
-        1. Load dataset from CSV file
-        2. Split into train and test based on the time series
-        3. Generate time series windows for training and testing
-        4. Split training into training subset and validation randomly
-        5. Convert windows to torch tensors and create dataloaders
+        1. Split into train and test based on the time series
+        2. Generate time series windows for training and testing
+        3. Split training into training subset and validation randomly
+        4. Convert windows to torch tensors and create dataloaders
         """
         train_inputs, test_inputs = time_series_train_test_split(self.inputs, test_size=self.test_size)
         train_outputs, test_outputs = time_series_train_test_split(self.outputs, test_size=self.test_size)
@@ -154,31 +286,16 @@ class SimulationDataModule(pl.LightningDataModule):
             self.test_samples = [s for s in windows.values() if s.size > 0]
 
     def train_dataloader(self) -> Iterable:
-        """Generates training data and returns torch DataLoader"""
-        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.train_samples)
-        dataset = TensorDataset(*tensors)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
+        return dataloader_from_numpy(self.train_samples, self.batch_size, shuffle=True, dtype=self.dtype)
 
     def val_dataloader(self) -> Iterable:
-        """
-        Generates training data and returns torch DataLoader
-        with validation data which is removed from training data loader
-        """
         if self.validation_size is None:
             raise ValueError("Validation size must be specified to use validation data loader!")
 
-        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.val_samples)
-        dataset = TensorDataset(*tensors)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        return dataloader_from_numpy(self.val_samples, self.batch_size, shuffle=False, dtype=self.dtype)
 
     def test_dataloader(self) -> Iterable:
-        """Generates test data and returns torch DataLoader"""
-        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.test_samples)
-        dataset = TensorDataset(*tensors)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        return dataloader_from_numpy(self.test_samples, self.batch_size, shuffle=False, dtype=self.dtype)
 
     def predict_dataloader(self) -> Iterable:
-        """Generates test data and returns torch DataLoader for prediction"""
-        tensors = map(lambda sample: torch.from_numpy(sample).to(self.dtype), self.test_samples)
-        dataset = TensorDataset(*tensors)
-        return DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_workers)
+        return dataloader_from_numpy(self.test_samples, self.batch_size, shuffle=False, dtype=self.dtype)
