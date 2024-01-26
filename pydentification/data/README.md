@@ -72,10 +72,10 @@ train, test = time_series_train_test_split(dataset, test_size=0.5)  # assume dat
 
 Data modules are utils based on lightning data modules. They are used for loading data and can be extended for
 preprocessing. Implemented datamodules are:
-* `CsvDataModule` - for loading data from csv files
-* `PredictionDataModule` - for loading data from prediction datasets with dynamically changed autoregression window size
+* `SimulationDataModule` - for loading data from datasets meant for simulation modelling
+* `PredictionDataModule` - for loading data from datasets meant for system prediction with ability to dynamically change autoregression window size
 
-### CSV Data Module
+### Simulation DataModule
 
 Simulation and prediction support for CSV based datasets. It uses `generate_time_series_windows` and pandas for loading
 data. It is recommended to use this module for small datasets.
@@ -84,10 +84,10 @@ Model and training needs to be defined to follow this order, for example in typi
 are features and forward outputs are labels. For other types of modelling this may be different. 
 
 ```python
-from pydentification.data import CsvDataModule
+from pydentification.data.datamodules.simulation import SimulationDataModule
 
 
-dm = CsvDataModule(
+dm = SimulationDataModule(
     dataset_path="dataset.csv",  # CSV file with data 
     input_columns=["x"],
     output_columns=["y"],
@@ -116,58 +116,6 @@ def training_step(self, batch, batch_idx):  # assume defined in lightning module
     return loss
 ```
 
-For predictive modelling, following datamodule can be defined. Code to handle this is the same as in simulation, but
-model will be acting as time advancing operator.
-
-```python
-from pydentification.data.datamodules.simulation import SimulationDataModule
-
-
-dm = SimulationDataModule(
-    dataset_path="dataset.csv",  # CSV file with data 
-    output_columns=["x", "y", "z"],
-    test_size=0.5, 
-    batch_size=32,
-    validation_size=0.1,
-    shift=1,
-    backward_output_window_size=32,
-    forward_output_window_size=8,  # 8-step ahead prediction 
-)
-```
-
-In complex modelling, where system inputs are used and past outputs are auxiliary features, following datamodule can be
-defined and handled in the model.
-
-```python
-from pydentification.data.datamodules.simulation import SimulationDataModule
-
-
-dm = SimulationDataModule.from_csv(
-    dataset_path="dataset.csv",  # CSV file with data 
-    input_columns=["u"],
-    output_columns=["x", "y", "z"],
-    test_size=0.5, 
-    batch_size=32,
-    validation_size=0.1,
-    shift=1,
-    forward_input_window_size=16,  # 16 step forward core features
-    backward_output_window_size=32,  # 32-step back auxiliary features
-    forward_output_window_size=16,  # 16-step ahead prediction 
-)
-```
-
-To handle this in model and trainer, following code can be used:
-
-```python
-def training_step(self, batch, batch_idx):  # assume defined in lightning module
-    system_inputs, past_system_outputs, targets = batch
-    y_hat = self(system_inputs, past_system_outputs)  # handle 2 inputs to the model to get prediction
-    loss = self.loss(y_hat, targets)
-    self.log("train/loss", loss)
-
-    return loss
-```
-
 ### Prediction Data Module
 
 This module is used for autoregressive training for predictive modelling. It supports number of features for such
@@ -176,9 +124,12 @@ problems, including:
 * Generating multiple test or prediction sets with different prediction horizons
 * Caching datasets for given window size (using Trainer parameters `reload_dataloaders_every_n_epochs=1` is required for autoregression length change)
 
-Creating datamodule is similar to `CsvDataModule`:
+Creating datamodule is similar to `PredictionDataModule`:
 
 ```python
+from pydentification.data.datamodules.prediction import PredictionDataModule
+
+
 dm = PredictionDataModule(
     states,  # numpy array with system states
     test_size=0.5,
@@ -221,6 +172,40 @@ prediction_horizons = (16, 64, 128, 512, 1024, 4096)
 trainer = pl.Trainer(precision=64)
 # assumes model and datamodule exist, y_hat is a list with 6 predictions each for different prediction horizon
 y_hat = trainer.predict(model, dataloaders=dm.test_dataloader(n_forward_time_steps=prediction_horizons))
+```
+
+
+In complex modelling, where system inputs are used and past outputs are auxiliary features, following datamodule can be
+defined and handled in the model.
+
+```python
+from pydentification.data.datamodules.prediction import PredictionDataModule
+
+
+dm = PredictionDataModule.from_csv(
+    dataset_path="dataset.csv",  # CSV file with data 
+    input_columns=["u"],
+    output_columns=["x", "y", "z"],
+    test_size=0.5, 
+    batch_size=32,
+    validation_size=0.1,
+    shift=1,
+    forward_input_window_size=16,  # 16 step forward core features
+    backward_output_window_size=32,  # 32-step back auxiliary features
+    forward_output_window_size=16,  # 16-step ahead prediction 
+)
+```
+
+To handle this in model and trainer, following code can be used:
+
+```python
+def training_step(self, batch, batch_idx):  # assume defined in lightning module
+    system_inputs, past_system_outputs, targets = batch
+    y_hat = self(system_inputs, past_system_outputs)  # handle 2 inputs to the model to get prediction
+    loss = self.loss(y_hat, targets)
+    self.log("train/loss", loss)
+
+    return loss
 ```
 
 ## References
