@@ -4,6 +4,7 @@ This package contains modules used for training any models,  using `lightning.py
 order to decouple model building blocks, defining forward pass etc. from the logic for training them. Not all models
 can be used with all training modules, but most training modules is general. Currently implemented training modules:
 
+* `BoundedSimulationTrainingModule` - kernel-regression supported training for SISO simulation models producing networks with bounded predictions
 * `LightningPredictionTrainingModule` - autoregressive training for N-step ahead models
 * `LightningSimulationTrainingModule` - training for N to M simulation models
 

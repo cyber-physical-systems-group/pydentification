@@ -16,7 +16,7 @@ from pydentification.models.nonparametric.kernels import KernelCallable
 from pydentification.training.wrappers.inits import reset_parameters
 
 
-class HybridBoundedSimulationTrainingModule(pl.LightningModule):
+class BoundedSimulationTrainingModule(pl.LightningModule):
     """
     This class contains training module for neural network to identify nonlinear dynamical systems or static nonlinear
     functions with guarantees by using bounded activation incorporating theoretical bounds from the kernel regression
