@@ -92,7 +92,7 @@ class PredictionDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.n_workers = n_workers
 
-        # model input is fixed and it needs to be equal to the number of backward samples
+        # model input is fixed, and it needs to be equal to the number of backward samples
         self.n_backward_time_steps = n_backward_time_steps
         self.n_forward_time_steps = n_forward_time_steps  # set initial value, which can be changed by Callbacks
         self.train_shift = train_shift
