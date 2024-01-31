@@ -14,5 +14,101 @@ computed using those fetched points only, so the nearest neighbour algorithm doe
 
 ## Dependencies
 
-The implementation of hybrid training is based on `pydentification` packages in models, namely: `nonparametric` and
-`modules.activations`.
+The implementation of hybrid training is based on `pydentification` packages in models, namely: `nonparametric`,
+`modules.activations` and `modules.losses`. 
+
+## Algorithm
+
+The goal of bounded training is using kernel regression with bounds [1] to transfer them to neural network. This is done
+using bounded activation, which is defined in `pydentification.modules.activations`. The activation is used in such a 
+way, that network predictions will never go outside of those bounds. The details of the algorithm are described in our 
+paper [2].
+
+## Features
+
+* Adding bounds to pre-trained neural network (use `from_pretrained` constructor)
+* Training neural network with bounded activation and using bounds to improve convergence (use `bound_crossing_penalty > 0`)
+* Training neural network with bounded activation and using bounds to re-initialize the network multiple times until the initialized in inside the bounds (use `max_reinit > 0` and `0 < reinit_relative_tolerance` < 1).
+
+## Examples
+
+Usage with default parameters is given in code example below.
+
+To use with bounded activation. For zero-mean datasets,
+the network is likely to be in bounds from start, so both `bound_crossing_penalty` and `max_reinit` might have little
+effect. To run bounds crossing penalty, set the `bound_crossing_penalty` to some positive value and make sure that
+`bound_during_training` is `False, since when it is set to `True`, the bounds are used to activate the network during
+training, and it never goes outside of them, so bounds crossing penalty is never added.
+
+To use with reinit, set `max_reinit` to some positive value and `reinit_relative_tolerance` to some value between 0 and 
+1, parameter `reinit_relative_tolerance` is used to quantify the threshold for reinitialization, which is counted as the
+ration of elements in the batch outside of bounds. Setting it to 1 would result in reinitialization only when all the
+elements in the batch are outside of bounds, while setting it to 0 would result in reinitialization when any of elements
+is outside of bounds. The `max_reinit` parameter is used to limit the number of reinitializations.
+
+```python
+import torch
+
+from pydentification.training.bounded import BoundedSimulationTrainingModule
+from pydentification.models.nonparametric import kernels, memory
+
+
+model = BoundedSimulationTrainingModule(
+    network=network,  # assume network exists and it is torch.nn.Module
+    optimizer=torch.optim.Adam(network.parameters()),  # needs to be setup for network
+    lr_scheduler=torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.9),  # needs to be setup for optimizer
+    memory_manager=memory.ExactMemoryManager(),
+    bandwidth=0.1,
+    kernel=kernels.box_kernel,  # and compact kernel function can be used
+    lipschitz_constant=1,  # needs to be known
+    delta=0.9,
+    k=10,  # memory size for each kernel
+)
+
+trainer = pl.Trainer(max_epochs=10)
+trainer.fit(model, datamodule=dm)  # assume datamodule exists and it is pydentification.datamodules.SimulationDataModule
+```
+
+It is possible to use GPU or other accelerators with `BoundedSimulationTrainingModule`, while keeping the memory on 
+different or the same device and moving the model for prediction to any device. By default `lightning` trainer moves
+the model back to CPU after training.
+
+Note, that not all memory manager support GPU (`NNDescentMemoryManager` does not support GPU due to underlying library
+implementation). Also note, that memory and predict device needs to be the same, when using different than CPU.
+
+```python
+import torch
+
+from pydentification.training.bounded import BoundedSimulationTrainingModule
+from pydentification.models.nonparametric import kernels, memory
+
+
+model = BoundedSimulationTrainingModule(
+    network=network,  # assume network exists and it is torch.nn.Module
+    optimizer=torch.optim.Adam(network.parameters()),  # needs to be setup for network
+    lr_scheduler=torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.9),  # needs to be setup for optimizer
+    memory_manager=memory.ExactMemoryManager(),
+    bandwidth=0.1,
+    kernel=kernels.box_kernel,  # and compact kernel function can be used
+    lipschitz_constant=1,  # needs to be known
+    delta=0.9,
+    k=10,  # memory size for each kernel
+    memory_device="cuda",  # move memory manager to CUDA for training
+    predict_device="cuda",  # move prediction to CUDA for prediction
+)
+
+trainer = pl.Trainer(max_epochs=10, accelerator="gpu", gpus=1)
+trainer.fit(model, datamodule=dm)  # assume datamodule exists and it is pydentification.datamodules.SimulationDataModule
+```
+
+## References
+
+<a id="1">[1]</a> 
+Paweł Wachel and Krzysztof Kowalczyk and Cristian R. Rojas (2023)
+*Decentralized diffusion-based learning under non-parametric limited prior knowledge*
+https://arxiv.org/abs/2305.03295
+
+<a id="2">[2]</a> 
+Krzysztof Zając and Krzysztof Kowalczyk and Paweł Wachel (2024)
+*Kernel-Supported Neural Modeling of Nonlinear Systems*
+TBA
