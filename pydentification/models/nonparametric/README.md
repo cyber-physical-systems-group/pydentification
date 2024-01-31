@@ -14,8 +14,8 @@ and does not hold state. To use the function run following code:
 ```python
 import torch
 
-from pydentification.models.kernel_regression.functional import kernel_regression
-from pydentification.models.kernel_regression.kernels import box_kernel
+from pydentification.models.nonparametric.functional import kernel_regression
+from pydentification.models.nonparametric.kernels import box_kernel
 
 
 x = torch.rand(100, 2)
@@ -38,8 +38,8 @@ To use the function run following code:
 ```python
 import torch
 
-from pydentification.models.kernel_regression.functional import kernel_regression, kernel_regression_bounds
-from pydentification.models.kernel_regression.kernels import box_kernel
+from pydentification.models.nonparametric.functional import kernel_regression, kernel_regression_bounds
+from pydentification.models.nonparametric.kernels import box_kernel
 
 
 x = torch.rand(100, 2)
@@ -100,9 +100,9 @@ To use the memory manager with kernel regression, run following code:
 ```python
 import torch
 
-from pydentification.models.kernel_regression.functional import kernel_regression
-from pydentification.models.kernel_regression.kernels import box_kernel
-from pydentification.models.kernel_regression.memory import NNDescentMemoryManager
+from pydentification.models.nonparametric.functional import kernel_regression
+from pydentification.models.nonparametric.kernels import box_kernel
+from pydentification.models.nonparametric.memory import NNDescentMemoryManager
 
 
 x = torch.rand(10_000, 100)  # very large dataset with high dimension
@@ -121,6 +121,7 @@ for batch in batched(test_x, batch_size=100):  # assume batched exists
 ```
 
 Currently implemented memory managers:
+* `ExactMemoryManager` - uses `torch.cdist` to query the memory, efficient for small datasets and low dimensions (can be run directly on GPU)
 * `NNDescentMemoryManager` - uses NNDescent algorithm to query the memory [4]
 
 # References
