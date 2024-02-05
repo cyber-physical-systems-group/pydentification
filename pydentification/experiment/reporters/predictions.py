@@ -10,7 +10,7 @@ try:
 except ImportError as ex:
     message = (
         "Missing optional dependency, to install all optionals from experiment module run:\n"
-        "`pip install -r pydentification/experiment/requirements.txt`"
+        "`pip install -r pydentification/experiment/extra-requirements.txt`"
     )
 
     raise ImportError(message) from ex
