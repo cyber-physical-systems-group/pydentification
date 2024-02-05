@@ -2,11 +2,12 @@ from typing import Any
 
 import pytest
 import torch
+from torch import Tensor
 
 from pydentification.models.networks.transformer import CausalDelayLineFeedforward, DynamicalSelfAttention, MaskedLinear
 
 
-def change_time_series_signal(signal: torch.Tensor, change_step: int, value: float) -> torch.Tensor:
+def change_time_series_signal(signal: Tensor, change_step: int, value: float) -> Tensor:
     """Modify the signal to have a change at the given time step"""
     signal = signal.clone()
 
