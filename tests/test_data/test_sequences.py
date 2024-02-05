@@ -1,29 +1,7 @@
-from typing import Sequence, Union
-
 import numpy as np
 import pytest
 
-from pydentification.data import generate_time_series_windows, time_series_train_test_split
-
-
-@pytest.mark.parametrize(
-    "sequence, test_size, expected_train_size, expected_test_size",
-    [
-        (np.arange(100), 0.5, 50, 50),
-        (list(range(100)), 0.5, 50, 50),
-        (np.arange(100), 0.3, 70, 30),
-        (np.arange(100), 56, 44, 56),
-        (np.arange(100), 28, 72, 28),
-        (np.arange(300).reshape(100, 3), 0.4, 60, 40),
-    ],
-)
-def test_time_series_train_test_split(
-    sequence: Sequence, test_size: Union[int, float], expected_train_size: int, expected_test_size: int
-):
-    train_sequence, test_sequence = time_series_train_test_split(sequence, test_size)
-
-    assert len(train_sequence) == expected_train_size
-    assert len(test_sequence) == expected_test_size
+from pydentification.data import generate_time_series_windows
 
 
 @pytest.mark.parametrize(

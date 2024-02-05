@@ -1,20 +1,5 @@
-from typing import Sequence, Union
-
 import numpy as np
 from numpy.typing import NDArray
-
-
-def time_series_train_test_split(sequence: Sequence, test_size: Union[int, float]) -> tuple[Sequence, Sequence]:
-    """
-    Splits time series into test and train set
-
-    :param sequence: sequence containing time series measurements
-    :param test_size: test size, given as fraction or number of samples
-
-    :return: two sequences containing train and test data respectively
-    """
-    first_test_index = len(sequence) - test_size if test_size > 1 else int((1 - test_size) * len(sequence))
-    return sequence[:first_test_index], sequence[first_test_index:]
 
 
 def generate_time_series_windows(
