@@ -11,8 +11,8 @@ from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset
 
-from ..sequences import generate_time_series_windows, time_series_train_test_split
-from ..splits import draw_validation_indices
+from ..sequences import generate_time_series_windows
+from ..splits import draw_validation_indices, time_series_train_test_split
 
 
 def dataloader_from_numpy(

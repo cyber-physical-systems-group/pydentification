@@ -37,8 +37,7 @@ def exact_memory_manager():
         (torch.tensor([[0.501], [0.2501]]), 3, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test_nn_descent_memory_manager_nearest_query(points: Tensor, k: int, expected: Tensor, exact_memory_manager):
-    # query with high epsilon to get certain results
+def test_exact_memory_manager_nearest_query(points: Tensor, k: int, expected: Tensor, exact_memory_manager):
     memory, _ = exact_memory_manager.query_nearest(points, k)  # ignore targets
     torch.testing.assert_close(memory, expected)
 
@@ -64,6 +63,6 @@ def test_nn_descent_memory_manager_nearest_query(points: Tensor, k: int, expecte
         (torch.tensor([[0.501], [0.2501]]), 0.015, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test_nn_descent_memory_manager_radius_query(points: Tensor, r: int, expected: Tensor, exact_memory_manager):
+def test_exact_memory_manager_radius_query(points: Tensor, r: int, expected: Tensor, exact_memory_manager):
     memory, _ = exact_memory_manager.query_radius(points, r)  # ignore targets
     torch.testing.assert_close(memory, expected)

@@ -1,30 +1,7 @@
 from abc import ABC, abstractmethod
-from functools import wraps
-from typing import Any, Callable
 
 import torch
 from torch import Tensor
-
-
-def needs_tensor_with_dims(*expected_dims: tuple[int | None, ...]) -> Callable:
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(self: Any, tensor: Tensor, *args, **kwargs):
-            if not isinstance(tensor, Tensor):
-                raise TypeError(f"Input should be a PyTorch Tensor, got {type(tensor)}")
-
-            if tensor.dim() != len(expected_dims):
-                raise ValueError(f"Expected tensor with {len(expected_dims)} dimensions, got {tensor.dim()}")
-
-            for index, dim in enumerate(expected_dims):
-                if dim is not None and tensor.size(index) != dim:
-                    raise ValueError(f"Expected size {dim} at dimension {index}, got {tensor.size(index)}")
-
-            return func(self, tensor, *args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 class MemoryManager(ABC):
