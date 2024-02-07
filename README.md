@@ -13,11 +13,27 @@ other benchmarks. It will also include utilities for training, testing and evalu
 
 ## Installation
 
-Right now, this is internal library (with intents for making it public soon), so just clone and run it. 
+To install simply run command `pip install git+https://github.com/cyber-physical-systems-group/pydentification.git` and
+selected the version using tag (see [releases](https://github.com/cyber-physical-systems-group/pydentification/releases)).
+Alternatively, for using the latest version, you can use `pip install .` after cloning the repository.
+
+This will install the package and all its base dependencies. Note, that some of the submodules require extra
+dependencies. 
+
+Right now, `pydentification` is not available on PyPI, so installing using git is the only possibility.
 
 ## Publishing
 
-We will solve this when we get there...
+`pydentification` is a research toolbox for working with neural networks and dynamical systems, most of the work is 
+meant to be published as research paper, however many of the utilities are shared. When publishing, make sure to include
+reference to the version of the package used to develop the experiments. When contributing to `pydentification`, make
+sure You include git tag (and GitHub release) describing features introduced for some paper. Each publication should 
+have a tractable version of this package, which was used to develop the experiments.
+
+## Docker
+
+Additionally, `containers` repository in this organization contains Dockerfiles for deploying docker with certain
+requirements, which can be used to speed up development. Right now, `containers` repository is not public.
 
 # Conventions
 
@@ -45,7 +61,7 @@ which can be set by running `git config --global user.email`.
 
 Please try to use conventional commits, which are described in [this guide](https://www.conventionalcommits.org/en/v1.0.0/).
 This is not strictly enforced, but it is a good practice to follow, since it makes it easier to understand the history.
-Short form is enough, like `[DynoNet](feat) Add reimplementation of dynamica module from DynoNet paper` or
+Short form is enough, like `[DynoNet](feat) Add reimplementation of dynamical module from DynoNet paper` or
 `[General](chore) Update requirements.txt`.
 
 ## Code Style
