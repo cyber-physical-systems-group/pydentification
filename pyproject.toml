@@ -23,8 +23,20 @@ dependencies = [
     "scikit-learn == 1.3.0",
     "torch == 2.1.0",  # CPU for pytest
     "lightning == 2.1.0",
-    # optional
+]
+
+[project.optional-dependencies]
+experiment = [
+    "plotly == 5.16.1",
+    "wandb == 0.15.8"
+]
+
+nonparametric = [
     "pynndescent == 0.5.11"
+]
+
+complete = [
+    "pydentification[experiment,nonparametric]",
 ]
 
 # linter and test settings
