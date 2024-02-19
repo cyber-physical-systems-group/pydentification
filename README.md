@@ -35,6 +35,9 @@ have a tractable version of this package, which was used to develop the experime
 Additionally, `containers` repository in this organization contains Dockerfiles for deploying docker with certain
 requirements, which can be used to speed up development. Right now, `containers` repository is not public.
 
+*Note*: Right now, to use CUDa it is required to install PyTorch separately, since it is not included in the base
+requirements. Recommended way is to use it with PyTorch Docker image with NVIDIA drivers.
+
 # Conventions
 
 ## Branching
