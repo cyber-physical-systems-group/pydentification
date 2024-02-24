@@ -30,6 +30,12 @@ paper [2].
 * Training neural network with bounded activation and using bounds to improve convergence (use `bound_crossing_penalty > 0`)
 * Training neural network with bounded activation and using bounds to re-initialize the network multiple times until the initialized in inside the bounds (use `max_reinit > 0` and `0 < reinit_relative_tolerance` < 1).
 
+## Static Systems
+
+The algorithm supports static systems as well, including multi-input single-output systems (MISO). This requires passing
+tensors with shape `(BATCH, 1, SYSTEM_DIM)`, which are converted to `(BATCH, SYSTEM_DIM)` before passing to the network.
+For static SISO or single-step dynamical systems, this does not make any difference. 
+
 ## Examples
 
 Usage with default parameters is given in code example below.
