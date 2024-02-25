@@ -151,18 +151,28 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         Prepare memory manager for nonparametric estimator with training data. This method is called by `setup` method
         automatically, but it can be also called manually to prepare memory manager with custom data.
         """
-        if x.size(-1) != 1 or y.size(-1) != 1 or y.size(1) != 1:
-            raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
+        if x.size(1) != 1 and x.size(-1) != 1:
+            raise RuntimeError(
+                "Kernel regression can only be used for static systems or SISO dynamical systems!\n"
+                "Expected inputs to have shape (BATCH, TIME_STEPS, 1) or (BATCH, 1, SYSTEM_DIM)!"
+            )
 
-        x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
-        y = y.squeeze(dim=-1)  # (BATCH, TIME_STEPS, 1) -> (BATCH, ) for SISO systems
+        if y.size(-1) != 1 or y.size(1) != 1:
+            raise RuntimeError(
+                "Kernel regression can only be used for static systems or SISO dynamical systems!\n"
+                "Expected targets to have shape (BATCH, 1, 1)!"
+            )
+
+        if x.size(1) == 1 and x.size(-1) != 1:
+            # MISO static system - implementation is the same as in SISO dynamic, but dimensions are swapped
+            x = x.permute(0, 2, 1)  # swap time and dimension axes
+
+        x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) or (BATCH, SYSTEM_DIM)
+        y = y.squeeze(dim=-1)  # (BATCH, 1, 1) -> (BATCH, ) for SISO systems
 
         if self.noise_variance == "estimate":  # estimate noise variance if its value is not given
             # only 1D signal is supported for noise variance estimation, so y is squeezed to (BATCH,)
             self.noise_variance = noise_variance_estimator(y.squeeze(dim=-1), kernel_size=self.noise_var_kernel_size)
-
-        if type(self.trainer.strategy).__name__ != "SingleDeviceStrategy":
-            raise RuntimeError(f"{self.__class__.__name__} can only be used with single device strategy!")
 
         if self.memory_device == "cuda":
             # by default setup (which calls prepare) is running on CPU before tensors are moved to devices
@@ -207,8 +217,8 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         Part of forward function to predict value at given input points using kernel regression with fixed settings.
         Shape interface is the same as for models used in `pydentification.models` package.
         """
-        if x.size(-1) != 1:
-            raise RuntimeError("Kernel regression can only be used for SISO systems with one-step ahead prediction!")
+        if x.size(1) == 1 and x.size(-1) != 1:
+            x = x.permute(0, 2, 1)  # "swap" time and system dimension (from static MISO to dynamic SISO)
 
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
         x_from_memory, y_from_memory = self.memory_manager(x, k=self.k, r=self.r, epsilon=self.memory_epsilon)
