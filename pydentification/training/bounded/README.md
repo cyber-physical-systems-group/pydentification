@@ -107,6 +107,56 @@ trainer = pl.Trainer(max_epochs=10, accelerator="gpu", gpus=1)
 trainer.fit(model, datamodule=dm)  # assume datamodule exists and it is pydentification.datamodules.SimulationDataModule
 ```
 
+### Implementation Details
+
+The `BoundedSimulationTrainingModule` is meant to be used with `pl.Trainer` from `pytorch-lightning` package, however
+not all options can be applied. Only `SingleDeviceStrategy` is supported, to check it, use following snippet, assuming
+the call is made inside `pl.Trainer` (after passing the model to the trainer).
+
+```python
+if type(self.trainer.strategy).__name__ != "SingleDeviceStrategy": 
+    raise RuntimeError(f"{self.__class__.__name__} can only be used with single device strategy!")
+```
+
+#### Memory Manager
+
+When using `NNDescentMemoryManager`, sometimes internal issue pops up, with unclear message, which is given below. This
+means that `epsilon` parameter was not given to call of pynndescent algorithm. It can be solved by passing
+`memory_epsilon` set to some value (see docs https://pynndescent.readthedocs.io/en/latest/).
+
+```log
+TypingError: Failed in nopython mode pipeline (step: nopython frontend)
+No implementation of function Function(<built-in function add>) found for signature:
+ 
+ >>> add(float64, none)
+ 
+There are 20 candidate implementations:
+   - Of which 18 did not match due to:
+   Overload of function 'add': File: <numerous>: Line N/A.
+     With argument(s): '(float64, none)':
+    No match.
+   - Of which 2 did not match due to:
+   Operator Overload in function 'add': File: unknown: Line unknown.
+     With argument(s): '(float64, none)':
+    No match for registered cases:
+     * (int64, int64) -> int64
+     * (int64, uint64) -> int64
+     * (uint64, int64) -> int64
+     * (uint64, uint64) -> uint64
+     * (float32, float32) -> float32
+     * (float64, float64) -> float64
+     * (complex64, complex64) -> complex64
+     * (complex128, complex128) -> complex128
+
+During: typing of intrinsic-call at /mnt/c/Users/kzaja/Documents/Research/Github/pydentification/venv/lib/python3.10/site-packages/pynndescent/pynndescent_.py (1281)
+
+File "venv/lib/python3.10/site-packages/pynndescent/pynndescent_.py", line 1281:
+        def search_closure(query_points, k, epsilon, visited, rng_state):
+            <source elided>
+            result = make_heap(query_points.shape[0], k)
+            distance_scale = 1.0 + epsilon
+```
+
 ## References
 
 <a id="1">[1]</a> 
