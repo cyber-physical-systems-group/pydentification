@@ -25,7 +25,7 @@ def exact_memory_manager(memory: Tensor, targets: Tensor):
 
 @pytest.fixture(scope="module")
 def nn_descent_memory_manager(memory: Tensor, targets: Tensor):
-    manager = NNDescentMemoryManager(metric="euclidean")
+    manager = NNDescentMemoryManager(epsilon=1.0, metric="euclidean")  # high epsilon to get certain results in tests
     manager.prepare(memory, targets)
 
     return manager
