@@ -5,7 +5,15 @@ from torch import Tensor
 from pydentification.models.nonparametric.memory.abstract import MemoryManager
 
 
-@pytest.mark.parametrize("memory_manager", [pytest.lazy_fixture("exact_memory_manager")])
+@pytest.mark.parametrize(
+    "memory_manager",
+    [
+        pytest.lazy_fixture("exact_memory_manager"),
+        pytest.lazy_fixture("scikit_auto_memory_manager"),
+        pytest.lazy_fixture("scikit_kd_tree_memory_manager"),
+        pytest.lazy_fixture("scikit_ball_tree_memory_manager"),
+    ],
+)
 @pytest.mark.parametrize(
     "points, r, expected",
     (
@@ -18,7 +26,8 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
         (torch.tensor([[1.0]]), 0.001, torch.tensor([[1.0]])),
         # query for multiple points on the edge of range
         (torch.tensor([[0.0]]), 0.05, torch.tensor([[0.0], [0.01], [0.02], [0.03], [0.04], [0.05]])),
-        (torch.tensor([[1.0]]), 0.05, torch.tensor([[0.95], [0.96], [0.97], [0.98], [0.99], [1.0]])),
+        # for numerical reasons, the point 0.95 will not be returned by scikit-learn radius query, if exactly r=0.05
+        (torch.tensor([[1.0]]), 0.051, torch.tensor([[0.95], [0.96], [0.97], [0.98], [0.99], [1.0]])),
         # batch query
         (torch.tensor([[0.5], [0.25]]), 0.001, torch.tensor([[0.25], [0.5]])),
         # batch query with multiple points
@@ -29,4 +38,6 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
 )
 def test_exact_memory_manager_radius_query(memory_manager: MemoryManager, points: Tensor, r: int, expected: Tensor):
     memory, _ = memory_manager.query(points, r=r)  # ignore targets
+    # sort memory to ensure all points are in the same order in result and expected, tensor is 1D
+    memory, _ = torch.sort(memory)
     torch.testing.assert_close(memory, expected)

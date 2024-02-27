@@ -6,7 +6,14 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
 
 
 @pytest.mark.parametrize(
-    "memory_manager", [pytest.lazy_fixture("nn_descent_memory_manager"), pytest.lazy_fixture("exact_memory_manager")]
+    "memory_manager",
+    [
+        pytest.lazy_fixture("nn_descent_memory_manager"),
+        pytest.lazy_fixture("exact_memory_manager"),
+        pytest.lazy_fixture("scikit_auto_memory_manager"),
+        pytest.lazy_fixture("scikit_kd_tree_memory_manager"),
+        pytest.lazy_fixture("scikit_ball_tree_memory_manager"),
+    ],
 )
 @pytest.mark.parametrize(
     "points, k, expected",
