@@ -2,20 +2,19 @@ import pytest
 import torch
 from torch import Tensor
 
-from pydentification.models.nonparametric.memory import NNDescentMemoryManager
+from pydentification.models.nonparametric.memory.abstract import MemoryManager
 
 
-@pytest.fixture(scope="module")
-def nn_descent_memory_manager():
-    memory = torch.linspace(0, 1, 101).unsqueeze(-1)  # 101 points in [0, 1] range spaced by 0.01 and shape [101, 1]
-    targets = 2 * memory  # dummy targets
-
-    manager = NNDescentMemoryManager(metric="euclidean")
-    manager.prepare(memory, targets)
-
-    return manager
-
-
+@pytest.mark.parametrize(
+    "memory_manager",
+    [
+        pytest.lazy_fixture("nn_descent_memory_manager"),
+        pytest.lazy_fixture("exact_memory_manager"),
+        pytest.lazy_fixture("scikit_auto_memory_manager"),
+        pytest.lazy_fixture("scikit_kd_tree_memory_manager"),
+        pytest.lazy_fixture("scikit_ball_tree_memory_manager"),
+    ],
+)
 @pytest.mark.parametrize(
     "points, k, expected",
     (
@@ -37,7 +36,7 @@ def nn_descent_memory_manager():
         (torch.tensor([[0.501], [0.2501]]), 3, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test_nn_descent_memory_manager(points: Tensor, k: int, expected: Tensor, nn_descent_memory_manager):
+def test(memory_manager: MemoryManager, points: Tensor, k: int, expected: Tensor):
     # query with high epsilon to get certain results
-    memory, _ = nn_descent_memory_manager.query_nearest(points, k, epsilon=1.0)  # ignore targets
+    memory, _ = memory_manager.query(points, k=k)  # type: ignore
     torch.testing.assert_close(memory, expected)

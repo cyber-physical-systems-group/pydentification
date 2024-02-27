@@ -47,7 +47,6 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         noise_variance: float | Literal["estimate"] = "estimate",
         k: int | None = None,
         r: float | None = None,
-        memory_epsilon: float = 0.1,
         p: int = 2,
         noise_var_kernel_size: int = 5,  # only used when noise_var is "estimate"
         bound_during_training: bool = False,
@@ -69,7 +68,6 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         :param noise_variance: variance of the noise in the function to be estimated, defaults to "estimate"
         :param k: number of nearest neighbors to use for kernel regression, either k or r needs to be defined
         :param r: radius of the neighborhood to use for kernel regression, either k or r needs to be defined
-        :param memory_epsilon: epsilon parameter for memory manager, defaults to 0.1
         :param p: exponent for point-wise distance, defaults to 2
         :param noise_var_kernel_size: kernel size for noise variance estimator, defaults to 5
         :param bound_during_training: flag to enable bounding during training, defaults to False
@@ -100,7 +98,6 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         self.noise_variance = noise_variance
         self.k = k
         self.r = r
-        self.memory_epsilon = memory_epsilon
         self.p = p
         self.noise_var_kernel_size = noise_var_kernel_size
 
@@ -109,9 +106,8 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         self.predict_device = predict_device
         self.prepared: bool = False
 
-        # validations
-        if k is None and r is None:
-            raise ValueError("Either k or radius needs to be defined!")
+        if not (k is None) ^ (r is None):
+            raise ValueError("Exactly one of: k and r needs to be defined!")
 
         self.save_hyperparameters()
 
@@ -221,7 +217,7 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
             x = x.permute(0, 2, 1)  # "swap" time and system dimension (from static MISO to dynamic SISO)
 
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
-        x_from_memory, y_from_memory = self.memory_manager(x, k=self.k, r=self.r, epsilon=self.memory_epsilon)
+        x_from_memory, y_from_memory = self.memory_manager.query(x, k=self.k, r=self.r)
 
         predictions, kernels = nonparametric_functional.kernel_regression(
             memory=x_from_memory,
