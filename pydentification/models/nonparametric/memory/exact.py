@@ -29,6 +29,11 @@ class ExactMemoryManager(MemoryManager):
         self.memory = memory  # store entire tensors in memory for exact search
         self.targets = targets if isinstance(targets, tuple) else (targets,)  # store targets as tuple
 
+    def to(self, device: torch.device) -> None:
+        """Move memory manager to given device"""
+        self.memory = self.memory.to(device)
+        self.targets = tuple(target.to(device) for target in self.targets)
+
     def query_nearest(self, points: Tensor, k: int) -> [tuple[Tensor, ...]]:
         """
         Query for K-nearest neighbors in memory given input points.
@@ -59,18 +64,9 @@ class ExactMemoryManager(MemoryManager):
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
-    def to(self, device: torch.device) -> None:
-        """Move memory manager to given device"""
-        self.memory = self.memory.to(device)
-        self.targets = tuple(target.to(device) for target in self.targets)
-
     def query(
         self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
     ) -> [tuple[Tensor, Tensor]]:
-        """
-        Default call method for ExactMemoryManager is controlled by `__init__`
-        Using __call__ should be done in parameterized setting, where different managers can appear
-        """
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r parameter must be specified!")
 
