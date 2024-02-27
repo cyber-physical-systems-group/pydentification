@@ -23,31 +23,11 @@ class MemoryManager(ABC):
         ...
 
     @abstractmethod
-    def query_nearest(self, points: Tensor, k: int) -> [tuple[Tensor, Tensor]]:
-        """
-        Query for K-nearest neighbors in memory given input points.
-
-        :param points: input points for which to find nearest neighbours
-        :param k: number of nearest neighbours to return
-        """
-        ...
-
-    @abstractmethod
-    def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
-        """
-        Query for all points in memory within given radius of input points.
-
-        :param points: input points for which to find neighbours
-        :param r: radius of the neighbourhood
-        """
-        ...
-
-    @abstractmethod
     def to(self, device: torch.device) -> None:
         """Move memory manager to given device"""
         ...
 
     @abstractmethod
-    def __call__(self, points: Tensor, *args, **kwargs) -> [tuple[Tensor, Tensor]]:
+    def query(self, points: Tensor, **kwargs) -> [tuple[Tensor, Tensor]]:
         """Default call method, can be different for different memory managers"""
         ...

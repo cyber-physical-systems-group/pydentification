@@ -1,5 +1,3 @@
-from typing import Literal
-
 import torch
 from torch import Tensor
 
@@ -16,14 +14,8 @@ class ExactMemoryManager(MemoryManager):
     It can be used by default with k-nn mode or radius mode.
     """
 
-    def __init__(self, default_call: Literal["nearest", "radius"] = "nearest"):
-        """
-        :param default_call: default method to call when memory manager is called as a function can be called with
-                             "nearest" or "radius" mode, fetching closest points or points within given radius
-        """
+    def __init__(self):
         super().__init__()
-
-        self.default_call = default_call
 
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
@@ -63,6 +55,7 @@ class ExactMemoryManager(MemoryManager):
         # check if any of the points in memory is within given radius of any query point
         mask = (distances <= r).any(axis=0)
         (index,) = torch.where(mask)
+        index = torch.unique(index)
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
@@ -71,20 +64,18 @@ class ExactMemoryManager(MemoryManager):
         self.memory = self.memory.to(device)
         self.targets = tuple(target.to(device) for target in self.targets)
 
-    def __call__(
-        self, points: Tensor, k: int | None = None, r: float | None = None, *args, **kwargs
+    def query(
+        self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
     ) -> [tuple[Tensor, Tensor]]:
         """
         Default call method for ExactMemoryManager is controlled by `__init__`
         Using __call__ should be done in parameterized setting, where different managers can appear
         """
-        if self.default_call == "nearest":
-            if k is None:
-                raise ValueError("K-nearest neighbors k parameter must be specified!")
-            return self.query_nearest(points, k=k)
-        elif self.default_call == "radius":
-            if r is None:
-                raise ValueError("Radius r parameter must be specified!")
-            return self.query_radius(points, r=r)
+        if not (k is None) ^ (r is None):
+            raise ValueError("Exactly one of: k and r parameter must be specified!")
 
-        raise ValueError(f"Unknown default call method: {self.default_call}!")
+        if k is not None:
+            return self.query_nearest(points, k=k)
+
+        if r is not None:
+            return self.query_radius(points, r=r)

@@ -28,5 +28,5 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
     ),
 )
 def test_exact_memory_manager_radius_query(memory_manager: MemoryManager, points: Tensor, r: int, expected: Tensor):
-    memory, _ = memory_manager.query_radius(points, r)  # ignore targets
+    memory, _ = memory_manager.query(points, r=r)  # ignore targets
     torch.testing.assert_close(memory, expected)
