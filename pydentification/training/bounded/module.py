@@ -106,9 +106,8 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         self.predict_device = predict_device
         self.prepared: bool = False
 
-        # validations
-        if k is None and r is None:
-            raise ValueError("Either k or radius needs to be defined!")
+        if not (k is None) ^ (r is None):
+            raise ValueError("Exactly one of: k and r needs to be defined!")
 
         self.save_hyperparameters()
 
@@ -218,7 +217,7 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
             x = x.permute(0, 2, 1)  # "swap" time and system dimension (from static MISO to dynamic SISO)
 
         x = x.squeeze(dim=-1)  # (BATCH, TIME_STEPS, SYSTEM_DIM) -> (BATCH, TIME_STEPS) for SISO systems
-        x_from_memory, y_from_memory = self.memory_manager(x, k=self.k, r=self.r)
+        x_from_memory, y_from_memory = self.memory_manager.query(x, k=self.k, r=self.r)
 
         predictions, kernels = nonparametric_functional.kernel_regression(
             memory=x_from_memory,
