@@ -70,7 +70,7 @@ class SklearnMemoryManager(MemoryManager):
 
     def query(
         self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
-    ) -> [tuple[Tensor, Tensor]]:
+    ) -> tuple[Tensor, ...]:  # type: ignore
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r parameter must be specified!")
 

@@ -49,7 +49,7 @@ class NNDescentMemoryManager(MemoryManager):
         if device != torch.device("cpu"):
             raise ValueError("NNDescentMemoryManager only supports CPU device!")
 
-    def query(self, points: Tensor, *, k: int, **kwargs) -> [tuple[Tensor, ...]]:  # type: ignore
+    def query(self, points: Tensor, *, k: int, **kwargs) -> tuple[Tensor, ...]:  # type: ignore
         """
         Query for K-nearest neighbors in memory given input points.
 
