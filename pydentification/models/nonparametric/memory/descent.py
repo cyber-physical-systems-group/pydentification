@@ -60,7 +60,8 @@ class NNDescentMemoryManager(MemoryManager):
 
         if points.device != self.memory.device:
             return_device = points.device  # remember device where points came from
-            points = points.to(self.memory.device)  # move points to memory device, since NNDescent only supports CPU
+            # move points to memory device, since NNDescent only supports CPU
+            points = points.detach().to(self.memory.device)
 
         if self.index is None:
             raise RuntimeError("Index is not built, call prepare method first!")

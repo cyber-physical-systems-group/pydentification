@@ -59,7 +59,7 @@ class FaissMemoryManager(MemoryManager):
         self.faiss_index.add(memory.cpu().numpy())
 
     def query(self, points: Tensor, *, k: int, **kwargs) -> tuple[Tensor, ...]:  # type: ignore
-        _, index = self.faiss_index.search(points.cpu().numpy(), k)  # type: ignore
+        _, index = self.faiss_index.search(points.detach().cpu().numpy(), k)  # type: ignore
         index = np.unique(np.concatenate(index).flatten())
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
