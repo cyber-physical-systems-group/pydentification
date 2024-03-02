@@ -122,7 +122,13 @@ for batch in batched(test_x, batch_size=100):  # assume batched exists
 
 Currently implemented memory managers:
 * `ExactMemoryManager` - uses `torch.cdist` to query the memory, efficient for small datasets and low dimensions (can be run directly on GPU)
-* `NNDescentMemoryManager` - uses NNDescent algorithm to query the memory [4]
+* `FAISSMemoryManager` - uses FAISS library to query the memory [4]
+* `NNDescentMemoryManager` - uses NNDescent algorithm to query the memory [5]
+* `SklearnMemoryManager` - uses sklearn library to query the memory, supporting all the algorithms from `sklearn.neighbors`
+
+*Note*: We use `pip` to install dependencies and FAISS currently only supports `conda` installation, so it is not
+included in automatic installing and by-extension testing. To use it, it is recommended to install manually from source,
+using release newer than 1.7.4 (as we use python 3.10 in this project). For more information see: https://github.com/facebookresearch/faiss/wiki/Installing-Faiss.
 
 # References
 
@@ -142,6 +148,11 @@ Wikipedia (2023)
 https://en.wikipedia.org/wiki/Kernel_(statistics)
 
 <a id="4">[4]</a>
+Jeff Johnson and Matthijs Douze and Hervé Jégou (2017)
+*Billion-scale similarity search with GPUs*
+https://arxiv.org/abs/1702.08734
+
+<a id="4">[5]</a>
 Wei Dong and Moses Charikar and Kai Li (2011)
 *Efficient K-Nearest Neighbor Graph Construction for Generic Similarity Measures*
 https://www.cs.princeton.edu/cass/papers/www11.pdf
