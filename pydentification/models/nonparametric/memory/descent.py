@@ -1,17 +1,8 @@
 import torch
+from pynndescent import NNDescent
 from torch import Tensor
 
 from .abstract import MemoryManager
-
-try:
-    from pynndescent import NNDescent
-except ImportError as ex:
-    message = (
-        "Missing optional dependency, to install all optionals from experiment module run:\n"
-        "`pip install -r pydentification/models/kernel_regression/extra-requirements.txt`"
-    )
-
-    raise ImportError(message) from ex
 
 
 class NNDescentMemoryManager(MemoryManager):
