@@ -4,6 +4,7 @@ import torch
 from torch import Tensor
 
 from .abstract import MemoryManager
+from .transformations import MemoryTransformation
 
 
 class FaissMemoryManager(MemoryManager):
@@ -18,7 +19,7 @@ class FaissMemoryManager(MemoryManager):
     * https://github.com/facebookresearch/faiss/wiki
     """
 
-    def __init__(self, gpu: bool = False, n_gpus: int = 1):
+    def __init__(self, transform: MemoryTransformation | None = None, gpu: bool = False, n_gpus: int = 1):
         """
         :param gpu: whether to use GPU for search
         :param n_gpus: number of GPUs to use for search
@@ -28,6 +29,7 @@ class FaissMemoryManager(MemoryManager):
         self.gpu = gpu
         self.n_gpus = n_gpus
 
+        self.transform = transform
         self.memory: Tensor | None = None
         self.targets: tuple[Tensor, ...] | None = None
         self.faiss_index: faiss.Index | None = None  # type: ignore
@@ -41,6 +43,9 @@ class FaissMemoryManager(MemoryManager):
         self.targets = tuple(target.to(device) for target in self.targets)
 
     def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+        if self.transform is not None:
+            memory = self.transform.before_prepare(memory)
+
         self.memory = memory
         self.targets = targets if isinstance(targets, tuple) else (targets,)
 
@@ -59,7 +64,16 @@ class FaissMemoryManager(MemoryManager):
         self.faiss_index.add(memory.cpu().numpy())
 
     def query(self, points: Tensor, *, k: int, **kwargs) -> tuple[Tensor, ...]:  # type: ignore
+        if self.transform is not None:
+            points = self.transform.before_query(points)
+
         _, index = self.faiss_index.search(points.detach().cpu().numpy(), k)  # type: ignore
         index = np.unique(np.concatenate(index).flatten())
 
-        return self.memory[index, :], *(target[index, :] for target in self.targets)
+        memory = self.memory[index, :]
+        targets = tuple(target[index, :] for target in self.targets)
+
+        if self.transform is not None:
+            memory = self.transform.after_query(memory)
+
+        return memory, targets
