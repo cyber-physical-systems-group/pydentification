@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import torch
 from torch import Tensor
 
 
@@ -45,3 +46,26 @@ class TruncateDelayLine(MemoryTransformation):
 
     def after_query(self, memory: Tensor) -> Tensor:
         return memory  # memory is modified during before_prepare call
+
+
+class Normalize(MemoryTransformation):
+    """
+    Normalize memory and query points to have zero mean and unit variance.
+
+    This memory transformation changes points both for nearest neighbour search only and uses inverse transformation
+    before kernel regression.
+    """
+
+    def __init__(self):
+        self.mean: float | None = None
+        self.std: float | None = None
+
+    def before_prepare(self, memory: Tensor) -> Tensor:
+        self.std, self.mean = torch.std_mean(memory, dim=-1, correction=0)
+        return (memory - self.mean) / self.std
+
+    def before_query(self, query: Tensor) -> Tensor:
+        return (query - self.mean) / self.std
+
+    def after_query(self, memory: Tensor) -> Tensor:
+        return memory * self.std + self.mean
