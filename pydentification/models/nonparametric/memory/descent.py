@@ -1,17 +1,8 @@
 import torch
+from pynndescent import NNDescent
 from torch import Tensor
 
 from .abstract import MemoryManager
-
-try:
-    from pynndescent import NNDescent
-except ImportError as ex:
-    message = (
-        "Missing optional dependency, to install all optionals from experiment module run:\n"
-        "`pip install -r pydentification/models/kernel_regression/extra-requirements.txt`"
-    )
-
-    raise ImportError(message) from ex
 
 
 class NNDescentMemoryManager(MemoryManager):
@@ -58,7 +49,7 @@ class NNDescentMemoryManager(MemoryManager):
         if device != torch.device("cpu"):
             raise ValueError("NNDescentMemoryManager only supports CPU device!")
 
-    def query(self, points: Tensor, *, k: int, **kwargs) -> [tuple[Tensor, ...]]:  # type: ignore
+    def query(self, points: Tensor, *, k: int, **kwargs) -> tuple[Tensor, ...]:  # type: ignore
         """
         Query for K-nearest neighbors in memory given input points.
 
@@ -69,7 +60,8 @@ class NNDescentMemoryManager(MemoryManager):
 
         if points.device != self.memory.device:
             return_device = points.device  # remember device where points came from
-            points = points.to(self.memory.device)  # move points to memory device, since NNDescent only supports CPU
+            # move points to memory device, since NNDescent only supports CPU
+            points = points.detach().to(self.memory.device)
 
         if self.index is None:
             raise RuntimeError("Index is not built, call prepare method first!")

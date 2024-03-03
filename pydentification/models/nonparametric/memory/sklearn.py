@@ -29,7 +29,7 @@ class SklearnMemoryManager(MemoryManager):
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
         self.targets: tuple[Tensor, ...] | None = None
-        self.neighbors: NearestNeighbors | None = None
+        self.index: NearestNeighbors | None = None
 
         self.k = k
         self.algorithm = algorithm
@@ -43,39 +43,53 @@ class SklearnMemoryManager(MemoryManager):
         self.memory = memory
         self.targets = targets if isinstance(targets, tuple) else (targets,)
 
-        self.neighbors = NearestNeighbors(n_neighbors=self.k, algorithm=self.algorithm, **self.parameters)
-        self.neighbors.fit(memory)
+        self.index = NearestNeighbors(n_neighbors=self.k, algorithm=self.algorithm, **self.parameters)
+        self.index.fit(memory)
 
     def to(self, device: torch.device) -> None:
         """Move memory manager to given device"""
         self.memory = self.memory.to(device)
         self.targets = tuple(target.to(device) for target in self.targets)
 
-    def query_nearest(self, points: Tensor, k: int | None = None) -> [tuple[Tensor, ...]]:
+    def query_nearest(self, points: Tensor, k: int | None = None) -> tuple[Tensor, ...]:
         if k != self.k:
             warnings.warn(f"Using k different from the one used to fit the model! {k} != {self.k}")
 
         k = k or self.k  # default k was used to fit the neighbors model
 
-        index = self.neighbors.kneighbors(points, n_neighbors=k, return_distance=False)
+        index = self.index.kneighbors(points, n_neighbors=k, return_distance=False)
         index = np.unique(np.concatenate(index).flatten())
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
-    def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
-        index = self.neighbors.radius_neighbors(points, radius=r, return_distance=False)
+    def query_radius(self, points: Tensor, r: float) -> tuple[Tensor, Tensor]:
+        index = self.index.radius_neighbors(points, radius=r, return_distance=False)
         index = np.unique(np.concatenate(index).flatten())
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
     def query(
         self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
-    ) -> [tuple[Tensor, Tensor]]:
+    ) -> tuple[Tensor, ...]:  # type: ignore
+        return_device = self.memory.device
+
+        if points.device != self.memory.device:
+            return_device = points.device  # remember device where points came from
+            # move points to memory device, since NNDescent only supports CPU
+            points = points.detach().to(self.memory.device)
+
+        if self.index is None:
+            raise RuntimeError("Index is not built, call prepare method first!")
+
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r parameter must be specified!")
 
         if k is not None:
-            return self.query_nearest(points, k=k)
+            memory, targets = self.query_nearest(points, k=k)
 
         if r is not None:
-            return self.query_radius(points, r=r)
+            memory, targets = self.query_radius(points, r=r)
+
+        memory = memory.to(return_device)  # cast back to device where points came from  # noqa: E501
+        targets = (target.to(return_device) for target in self.targets)
+        return memory, *targets

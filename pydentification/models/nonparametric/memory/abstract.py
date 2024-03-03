@@ -28,6 +28,6 @@ class MemoryManager(ABC):
         ...
 
     @abstractmethod
-    def query(self, points: Tensor, **kwargs) -> [tuple[Tensor, Tensor]]:
+    def query(self, points: Tensor, **kwargs) -> tuple[Tensor, ...]:  # type: ignore
         """Default call method, can be different for different memory managers"""
         ...
