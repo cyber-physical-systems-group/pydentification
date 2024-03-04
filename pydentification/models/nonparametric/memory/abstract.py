@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 import torch
 from torch import Tensor
 
+from .transformations import MemoryTransformation
+
 
 class MemoryManager(ABC):
     """
@@ -14,7 +16,7 @@ class MemoryManager(ABC):
     prediction batch.
     """
 
-    def __init__(self):
+    def __init__(self, transform: MemoryTransformation | None = None):
         ...
 
     @abstractmethod

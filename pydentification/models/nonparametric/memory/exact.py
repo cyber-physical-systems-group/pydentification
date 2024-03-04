@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 
 from .abstract import MemoryManager
+from .transformations import MemoryTransformation
 
 
 class ExactMemoryManager(MemoryManager):
@@ -14,9 +15,10 @@ class ExactMemoryManager(MemoryManager):
     It can be used by default with k-nn mode or radius mode.
     """
 
-    def __init__(self):
+    def __init__(self, transform: MemoryTransformation | None = None):
         super().__init__()
 
+        self.transform = transform
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
         self.targets: tuple[Tensor, ...] | None = None
@@ -26,6 +28,9 @@ class ExactMemoryManager(MemoryManager):
         :param memory: tensor of indexed data points to search for nearest neighbors
         :param targets: tensor of target values corresponding to the memory points, can be any number of tensors
         """
+        if self.transform is not None:
+            memory = self.transform.before_prepare(memory)
+
         self.memory = memory  # store entire tensors in memory for exact search
         self.targets = targets if isinstance(targets, tuple) else (targets,)  # store targets as tuple
 
@@ -34,7 +39,7 @@ class ExactMemoryManager(MemoryManager):
         self.memory = self.memory.to(device)
         self.targets = tuple(target.to(device) for target in self.targets)
 
-    def query_nearest(self, points: Tensor, k: int) -> [tuple[Tensor, ...]]:
+    def query_nearest(self, points: Tensor, k: int) -> tuple[Tensor, ...]:
         """
         Query for K-nearest neighbors in memory given input points.
 
@@ -49,7 +54,7 @@ class ExactMemoryManager(MemoryManager):
         # return found nearest points from memory and collect from all target tensors corresponding to them
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
-    def query_radius(self, points: Tensor, r: float) -> [tuple[Tensor, Tensor]]:
+    def query_radius(self, points: Tensor, r: float) -> tuple[Tensor, Tensor]:
         """
         Query for all points in memory within given radius of input points.
 
@@ -64,14 +69,20 @@ class ExactMemoryManager(MemoryManager):
 
         return self.memory[index, :], *(target[index, :] for target in self.targets)
 
-    def query(
-        self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
-    ) -> [tuple[Tensor, Tensor]]:
+    def query(self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs) -> tuple[Tensor, Tensor]:
+        if self.transform is not None:
+            points = self.transform.before_query(points)
+
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r parameter must be specified!")
 
         if k is not None:
-            return self.query_nearest(points, k=k)
+            memory, targets = self.query_nearest(points, k=k)
 
         if r is not None:
-            return self.query_radius(points, r=r)
+            memory, targets = self.query_radius(points, r=r)
+
+        if self.transform is not None:
+            memory = self.transform.after_query(memory)  # type: ignore
+
+        return memory, targets  # type: ignore

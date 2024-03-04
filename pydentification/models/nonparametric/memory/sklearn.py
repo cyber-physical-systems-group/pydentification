@@ -7,6 +7,7 @@ from sklearn.neighbors import NearestNeighbors
 from torch import Tensor
 
 from .abstract import MemoryManager
+from .transformations import MemoryTransformation
 
 
 class SklearnMemoryManager(MemoryManager):
@@ -17,7 +18,13 @@ class SklearnMemoryManager(MemoryManager):
     It can be used by default with k-nn mode or radius mode.
     """
 
-    def __init__(self, k: int, algorithm: Literal["auto", "ball_tree", "kd_tree", "brute"] = "auto", **parameters):
+    def __init__(
+        self,
+        k: int,
+        transform: MemoryTransformation | None = None,
+        algorithm: Literal["auto", "ball_tree", "kd_tree", "brute"] = "auto",
+        **parameters,
+    ):
         """
         :param k: number of nearest neighbors used to initialize the model, it can be over-written
         :param algorithm: algorithm used to compute nearest neighbors
@@ -32,6 +39,7 @@ class SklearnMemoryManager(MemoryManager):
         self.index: NearestNeighbors | None = None
 
         self.k = k
+        self.transform = transform
         self.algorithm = algorithm
         self.parameters = parameters
 
@@ -40,6 +48,9 @@ class SklearnMemoryManager(MemoryManager):
         :param memory: tensor of indexed data points to search for nearest neighbors
         :param targets: tensor of target values corresponding to the memory points, can be any number of tensors
         """
+        if self.transform is not None:
+            memory = self.transform.before_prepare(memory)
+
         self.memory = memory
         self.targets = targets if isinstance(targets, tuple) else (targets,)
 
@@ -84,11 +95,17 @@ class SklearnMemoryManager(MemoryManager):
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r parameter must be specified!")
 
+        if self.transform is not None:
+            points = self.transform.before_query(points)
+
         if k is not None:
             memory, targets = self.query_nearest(points, k=k)
 
         if r is not None:
             memory, targets = self.query_radius(points, r=r)
+
+        if self.transform is not None:
+            memory = self.transform.after_query(memory)
 
         memory = memory.to(return_device)  # cast back to device where points came from  # noqa: E501
         targets = (target.to(return_device) for target in self.targets)

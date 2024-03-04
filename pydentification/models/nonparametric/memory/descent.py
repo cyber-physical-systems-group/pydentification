@@ -3,10 +3,11 @@ from pynndescent import NNDescent
 from torch import Tensor
 
 from .abstract import MemoryManager
+from .transformations import MemoryTransformation
 
 
 class NNDescentMemoryManager(MemoryManager):
-    def __init__(self, epsilon: float, **parameters):
+    def __init__(self, epsilon: float, transform: MemoryTransformation | None = None, **parameters):
         """
         :param epsilon: search parameter for NNDescent, see: https://pynndescent.readthedocs.io/en/latest/api.html
                         given statically for all queries
@@ -22,6 +23,7 @@ class NNDescentMemoryManager(MemoryManager):
         self.parameters = parameters
         self.epsilon = epsilon
 
+        self.transform = transform
         self.index = None  # build deferred until first query, it takes significant amount of time
 
     def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
@@ -31,6 +33,9 @@ class NNDescentMemoryManager(MemoryManager):
         :param memory: tensor of indexed data points to search for nearest neighbors
         :param targets: tensor of target values corresponding to the memory points, can be any number of tensors
         """
+        if self.transform is not None:
+            memory = self.transform.before_prepare(memory)
+
         self.memory = memory
         self.targets = targets if isinstance(targets, tuple) else (targets,)  # store targets as tuple
 
@@ -66,6 +71,9 @@ class NNDescentMemoryManager(MemoryManager):
         if self.index is None:
             raise RuntimeError("Index is not built, call prepare method first!")
 
+        if self.transform is not None:
+            points = self.transform.before_query(points)
+
         indexed, _ = self.index.query(points, k=k, epsilon=self.epsilon)
         # memory manager returns flat memory for all query points
         # duplicates are removed and the dimensionality is reduced to 1
@@ -73,5 +81,8 @@ class NNDescentMemoryManager(MemoryManager):
         # return found nearest points from memory and collect from all target tensors corresponding to them
         memory = self.memory[indexed, :].to(return_device)  # cast back to device where points came from
         targets = tuple(target[indexed, :].to(return_device) for target in self.targets)
+
+        if self.transform is not None:
+            memory = self.transform.after_query(memory)  # targets are not transformed
 
         return memory, *targets
