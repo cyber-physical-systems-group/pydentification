@@ -41,6 +41,9 @@ class DecayTimeSeries(MemoryTransformation):
         :param inverse: whether to back-transform memory after searching,
                         so kernel regression works in the original space
         """
+        if decay <= 0 or decay >= 1:
+            raise ValueError("Decay factor must be in range (0, 1)")
+
         self.decay = decay
         self.inverse = inverse
 
