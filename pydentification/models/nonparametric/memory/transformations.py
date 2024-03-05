@@ -27,25 +27,39 @@ class MemoryTransformation(ABC):
         ...
 
 
-class TruncateDelayLine(MemoryTransformation):
+class DecayTimeSeries(MemoryTransformation):
     """
-    Truncate delay line to last `target_dim` elements in order to make the nearest neighbour search faster and allow
-    kernel model to use only the most recent data for prediction, therefore decreasing the effective bandwidth.
+    Decay time series memory points to make points further in time further apart in memory space, since they are less
+    important for prediction.
 
     This memory transformation changes points both for nearest neighbour search and kernel regression.
     """
 
-    def __init__(self, target_dim: int):
-        self.target_dim = target_dim
+    def __init__(self, decay: float, inverse: bool = False):
+        """
+        :param decay: decay factor for time series
+        :param inverse: whether to back-transform memory after searching,
+                        so kernel regression works in the original space
+        """
+        self.decay = decay
+        self.inverse = inverse
+
+        self.query_decay: Tensor | None = None
 
     def before_prepare(self, memory: Tensor) -> Tensor:
-        return memory[:, -self.target_dim :]  # noqa E203
+        decays = self.decay ** torch.arange(memory.size(-1), dtype=memory.dtype, device=memory.device)
+        return memory * decays.unsqueeze(0)
 
     def before_query(self, query: Tensor) -> Tensor:
-        return query[:, -self.target_dim :]  # noqa E203
+        decays = self.decay ** torch.arange(query.size(-1), dtype=query.dtype, device=query.device)
+        self.query_decay = decays
+        return query * decays.unsqueeze(0)
 
     def after_query(self, memory: Tensor) -> Tensor:
-        return memory  # memory is modified during before_prepare call
+        if self.inverse:
+            return memory / self.query_decay
+
+        return memory
 
 
 class Normalize(MemoryTransformation):
@@ -69,3 +83,24 @@ class Normalize(MemoryTransformation):
 
     def after_query(self, memory: Tensor) -> Tensor:
         return memory * self.std + self.mean
+
+
+class TruncateDelayLine(MemoryTransformation):
+    """
+    Truncate delay line to last `target_dim` elements in order to make the nearest neighbour search faster and allow
+    kernel model to use only the most recent data for prediction, therefore decreasing the effective bandwidth.
+
+    This memory transformation changes points both for nearest neighbour search and kernel regression.
+    """
+
+    def __init__(self, target_dim: int):
+        self.target_dim = target_dim
+
+    def before_prepare(self, memory: Tensor) -> Tensor:
+        return memory[:, -self.target_dim :]  # noqa E203
+
+    def before_query(self, query: Tensor) -> Tensor:
+        return query[:, -self.target_dim :]  # noqa E203
+
+    def after_query(self, memory: Tensor) -> Tensor:
+        return memory  # memory is modified during before_prepare call
