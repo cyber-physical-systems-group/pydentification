@@ -7,23 +7,28 @@ integral part of the library, so they need additional code defining the experime
 
 To use the entrypoints and utils provided here, `RuntimeContext` needs to be implemented, which is used to parametrize
 the experiment. Interface is given by state-less class, so it can be defined as single namespace, it needs to be passed
-to the entrypoint function. 
+to the entrypoint function.
 
-**Note**: `run.py` and `sweep.py` do define `main` functions, but never execute them.
-
-### Main
-
-To run experiment (assume not using sweep for now), following code needs to be implemented.
+To run experiment (assume not using sweep for now), following code needs to be implemented. This additionally allows 
+to use `click` library to pass the config files as options.
 
 ```python
-from pydentification.experiment.run import main
+import click
 
-from src import context  # assume this is project specific code
+from pydentification.experiment.entrypoints import run
 
+from src import runtime  # assume this is project specific code
+
+
+@click.command()
+@click.option("--data", type=click.Path(exists=True), required=True)
+@click.option("--experiment", type=click.Path(exists=True), required=True)
+def main(data, experiment):
+    run(data=data, experiment=experiment, runtime=runtime)
 
 
 if __name__ == "__main__":
-    main(context)
+    main()
 ```
 
 To run simply execute the script with flags for config passing.
