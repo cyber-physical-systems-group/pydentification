@@ -21,7 +21,7 @@ class ExactMemoryManager(MemoryManager):
         self.transform = transform
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
-        self.targets: tuple[Tensor, ...] | None = None
+        self.targets: Tensor | None = None
 
     def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
         """
@@ -32,12 +32,12 @@ class ExactMemoryManager(MemoryManager):
             memory = self.transform.before_prepare(memory)
 
         self.memory = memory  # store entire tensors in memory for exact search
-        self.targets = targets if isinstance(targets, tuple) else (targets,)  # store targets as tuple
+        self.targets = targets
 
     def to(self, device: torch.device) -> None:
         """Move memory manager to given device"""
         self.memory = self.memory.to(device)
-        self.targets = tuple(target.to(device) for target in self.targets)
+        self.targets = self.targets.to(device)
 
     def query_nearest(self, points: Tensor, k: int) -> tuple[Tensor, ...]:
         """
@@ -52,7 +52,7 @@ class ExactMemoryManager(MemoryManager):
         # flatten index tensor and remove duplicates, order of points to return does not matter
         index = torch.unique(torch.flatten(index))
         # return found nearest points from memory and collect from all target tensors corresponding to them
-        return self.memory[index, :], *(target[index, :] for target in self.targets)
+        return self.memory[index, :], self.targets[index, :]  # type: ignore
 
     def query_radius(self, points: Tensor, r: float) -> tuple[Tensor, Tensor]:
         """
@@ -67,9 +67,9 @@ class ExactMemoryManager(MemoryManager):
         (index,) = torch.where(mask)
         index = torch.unique(index)
 
-        return self.memory[index, :], *(target[index, :] for target in self.targets)
+        return self.memory[index, :], self.targets[index, :]
 
-    def query(self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs) -> tuple[Tensor, Tensor]:
+    def query(self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs) -> tuple[Tensor, ...]:
         if self.transform is not None:
             points = self.transform.before_query(points)
 
@@ -85,4 +85,4 @@ class ExactMemoryManager(MemoryManager):
         if self.transform is not None:
             memory = self.transform.after_query(memory)  # type: ignore
 
-        return memory, targets  # type: ignore
+        return memory, targets, points  # type: ignore
