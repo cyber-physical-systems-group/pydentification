@@ -31,7 +31,7 @@ class FaissMemoryManager(MemoryManager):
 
         self.transform = transform
         self.memory: Tensor | None = None
-        self.targets: tuple[Tensor, ...] | None = None
+        self.targets: Tensor | None = None
         self.faiss_index: faiss.Index | None = None  # type: ignore
 
     def to(self, device: torch.device) -> None:
@@ -40,7 +40,7 @@ class FaissMemoryManager(MemoryManager):
         just the device on which memory is returned. To run algorithm on GPU, use `gpu` parameter in constructor.
         """
         self.memory = self.memory.to(device)
-        self.targets = tuple(target.to(device) for target in self.targets)
+        self.targets = self.targets.to(device)
 
     def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
         if self.transform is not None:
@@ -71,9 +71,9 @@ class FaissMemoryManager(MemoryManager):
         index = np.unique(np.concatenate(index).flatten())
 
         memory = self.memory[index, :]
-        targets = tuple(target[index, :] for target in self.targets)
+        targets = self.targets[index, :]
 
         if self.transform is not None:
             memory = self.transform.after_query(memory)
 
-        return memory, targets
+        return memory, targets, points

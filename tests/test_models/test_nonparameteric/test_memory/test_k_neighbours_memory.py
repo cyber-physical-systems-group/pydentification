@@ -36,7 +36,6 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
         (torch.tensor([[0.501], [0.2501]]), 3, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test(memory_manager: MemoryManager, points: Tensor, k: int, expected: Tensor):
-    # query with high epsilon to get certain results
-    memory, _ = memory_manager.query(points, k=k)  # type: ignore
+def test_k_neighbours_query(memory_manager: MemoryManager, points: Tensor, k: int, expected: Tensor):
+    memory, _, _ = memory_manager.query(points, k=k)  # type: ignore
     torch.testing.assert_close(memory, expected)

@@ -35,7 +35,7 @@ class SklearnMemoryManager(MemoryManager):
 
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
-        self.targets: tuple[Tensor, ...] | None = None
+        self.targets: Tensor | None = None
         self.index: NearestNeighbors | None = None
 
         self.k = k
@@ -52,7 +52,7 @@ class SklearnMemoryManager(MemoryManager):
             memory = self.transform.before_prepare(memory)
 
         self.memory = memory
-        self.targets = targets if isinstance(targets, tuple) else (targets,)
+        self.targets = targets
 
         self.index = NearestNeighbors(n_neighbors=self.k, algorithm=self.algorithm, **self.parameters)
         self.index.fit(memory)
@@ -71,13 +71,13 @@ class SklearnMemoryManager(MemoryManager):
         index = self.index.kneighbors(points, n_neighbors=k, return_distance=False)
         index = np.unique(np.concatenate(index).flatten())
 
-        return self.memory[index, :], *(target[index, :] for target in self.targets)
+        return self.memory[index, :], self.targets[index, :]
 
     def query_radius(self, points: Tensor, r: float) -> tuple[Tensor, Tensor]:
         index = self.index.radius_neighbors(points, radius=r, return_distance=False)
         index = np.unique(np.concatenate(index).flatten())
 
-        return self.memory[index, :], *(target[index, :] for target in self.targets)
+        return self.memory[index, :], self.targets[index, :]
 
     def query(
         self, points: Tensor, *, k: int | None = None, r: float | None = None, **kwargs
@@ -108,5 +108,5 @@ class SklearnMemoryManager(MemoryManager):
             memory = self.transform.after_query(memory)
 
         memory = memory.to(return_device)  # cast back to device where points came from  # noqa: E501
-        targets = (target.to(return_device) for target in self.targets)
-        return memory, *targets
+        targets = self.targets.to(return_device)
+        return memory, targets, points

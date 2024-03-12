@@ -18,7 +18,7 @@ class NNDescentMemoryManager(MemoryManager):
 
         # placeholders stored in prepare method
         self.memory: Tensor | None = None
-        self.targets: tuple[Tensor, ...] | None = None
+        self.targets: Tensor | None = None
 
         self.parameters = parameters
         self.epsilon = epsilon
@@ -37,7 +37,7 @@ class NNDescentMemoryManager(MemoryManager):
             memory = self.transform.before_prepare(memory)
 
         self.memory = memory
-        self.targets = targets if isinstance(targets, tuple) else (targets,)  # store targets as tuple
+        self.targets = targets  # store targets as tuple
 
         self.index = NNDescent(self.memory, **self.parameters)
         self.index.prepare()
@@ -80,9 +80,9 @@ class NNDescentMemoryManager(MemoryManager):
         indexed = torch.unique(torch.from_numpy(indexed.flatten()))
         # return found nearest points from memory and collect from all target tensors corresponding to them
         memory = self.memory[indexed, :].to(return_device)  # cast back to device where points came from
-        targets = tuple(target[indexed, :].to(return_device) for target in self.targets)
+        targets = self.targets[indexed, :].to(return_device)
 
         if self.transform is not None:
             memory = self.transform.after_query(memory)  # targets are not transformed
 
-        return memory, *targets
+        return memory, targets, points

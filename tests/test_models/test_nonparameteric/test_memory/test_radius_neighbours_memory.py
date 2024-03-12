@@ -36,8 +36,8 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
         (torch.tensor([[0.501], [0.2501]]), 0.015, torch.tensor([[0.24], [0.25], [0.26], [0.49], [0.5], [0.51]])),
     ),
 )
-def test_exact_memory_manager_radius_query(memory_manager: MemoryManager, points: Tensor, r: int, expected: Tensor):
-    memory, _ = memory_manager.query(points, r=r)  # ignore targets
+def test_radius_query(memory_manager: MemoryManager, points: Tensor, r: int, expected: Tensor):
+    memory, _, _ = memory_manager.query(points, r=r)  # ignore targets
     # sort memory to ensure all points are in the same order in result and expected, tensor is 1D
     memory, _ = torch.sort(memory)
     torch.testing.assert_close(memory, expected)
