@@ -43,7 +43,7 @@ class LightningSimulationTrainingModule(pl.LightningModule):
         x, y = batch
         y_hat = self.module(x)  # type: ignore
         loss = self.loss(y_hat, y)
-        self.log("training/train_loss", loss)
+        self.log("trainer/train_loss", loss)
 
         return loss
 
@@ -51,12 +51,12 @@ class LightningSimulationTrainingModule(pl.LightningModule):
         x, y = batch
         y_hat = self.module(x)  # type: ignore
         loss = self.loss(y_hat, y)
-        self.log("training/validation_loss", loss)
+        self.log("trainer/validation_loss", loss)
 
         return loss
 
     def on_train_epoch_end(self):
-        self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
+        self.log("trainer/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
 
     def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, _: int = 0) -> Tensor:
         """
@@ -67,5 +67,5 @@ class LightningSimulationTrainingModule(pl.LightningModule):
         return self.module(x)  # type: ignore
 
     def configure_optimizers(self) -> dict[str, Any]:
-        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "trainer/validation_loss"}
         return {key: value for key, value in config.items() if value is not None}  # remove None values
