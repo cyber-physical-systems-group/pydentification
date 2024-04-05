@@ -73,7 +73,7 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         predictions = self.unroll_forward(batch, self.teacher_forcing)
 
         loss = self.loss(predictions, y)
-        self.log("training/train_loss", loss)
+        self.log("trainer/train_loss", loss)
 
         return loss
 
@@ -83,17 +83,18 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         predictions = self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during validation
 
         loss = self.loss(predictions, y)
-        self.log("training/validation_loss", loss)
+        self.log("trainer/validation_loss", loss)
 
         return loss
 
     def on_train_epoch_end(self):
-        self.log("training/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
+        self.log("trainer/lr", self.trainer.optimizers[0].param_groups[0]["lr"])
+        self.log("trainer/n_forward_time_steps", self.trainer.datamodule.n_forward_time_steps)
 
     def predict_step(self, batch: tuple[Tensor, Tensor], batch_idx: int, dataloader_idx: int = 0) -> Tensor:
         """Requires using batch of training inputs and targets to know the number of time steps to predict"""
         return self.unroll_forward(batch, teacher_forcing=False)  # never use teacher forcing during prediction
 
     def configure_optimizers(self) -> dict[str, Any]:
-        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "training/validation_loss"}
+        config = {"optimizer": self.optimizer, "lr_scheduler": self.lr_scheduler, "monitor": "trainer/validation_loss"}
         return {key: value for key, value in config.items() if value is not None}  # remove None values
