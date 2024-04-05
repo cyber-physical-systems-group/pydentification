@@ -18,7 +18,8 @@ selected the version using tag (see [releases](https://github.com/cyber-physical
 Alternatively, for using the latest version, you can use `pip install .` after cloning the repository.
 
 This will install the package and all its base dependencies. Note, that some of the submodules require extra
-dependencies. 
+dependencies. To install requirements for development, run `pip install -r requirements.txt` and `pip install -r requirements-dev.txt`.
+This will install all the requirements for running tests and code style checks, without `pydentification` itself.
 
 Right now, `pydentification` is not available on PyPI, so installing using git is the only possibility.
 
