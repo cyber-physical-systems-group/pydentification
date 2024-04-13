@@ -6,26 +6,7 @@ from typing import Any, Literal, Sequence
 import lightning.pytorch as pl
 
 
-class AbstractAutoRegressionLengthScheduler(pl.Callback):
-    """
-    Interface for auto-regression length scheduler
-
-    The scheduler is used to control the length of auto-regression in prediction training, following the idea that
-    shorter auto-regression is easier to learn and longer auto-regression is harder to learn, so model should see more
-    of shorter auto-regression early in the training.
-
-    :warning: the callback is meant to be used with `LightningPredictionTrainingModule` and `PredictionDataModule`.
-    """
-
-    def __init__(self):
-        ...
-
-    @abstractmethod
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
-        ...
-
-
-class StepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
+class StepAutoRegressionLengthScheduler(pl.Callback):
     """
     Increases the length of auto-regression by gamma every step_size epochs.
     Works as StepLR scheduler, but increasing the length (given as int!) instead of decaying.
@@ -71,7 +52,7 @@ class StepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
                 )
 
 
-class MultiStepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
+class MultiStepAutoRegressionLengthScheduler(pl.Callback):
     """
     Increases the length of auto-regression by gamma once the number of epoch reaches one of the milestones.
     Works as MultiStepLR scheduler, but increasing the length (given as int!) instead of decaying.
@@ -117,7 +98,7 @@ class MultiStepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthSchedul
             )
 
 
-class IncreaseAutoRegressionLengthOnPlateau(AbstractAutoRegressionLengthScheduler):
+class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
     """
     Increases the length of auto-regression by factor once the monitored quantity stops improving.
     Works as ReduceLROnPlateau scheduler, but increasing the length (given as int!) instead of decaying learning rate.
