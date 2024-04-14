@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from bisect import bisect_right
 from collections import Counter
 from typing import Any, Literal, Sequence
@@ -180,3 +179,36 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
                     f"{self.__class__.__name__}: new length = {trainer.datamodule.n_forward_time_steps}"
                     f" at epoch {trainer.current_epoch}"
                 )
+
+
+class CyclicTeacherForcing(pl.Callback):
+    """
+    Changes the teacher forcing status cyclically every cycle_in_epochs epochs.
+    """
+
+    def __init__(self, cycle_in_epochs: int, verbose: bool = False):
+        """
+        :param cycle_in_epochs: number of epochs after which teacher forcing is toggled
+        :param verbose: if True, prints the teacher forcing status when it is changed
+        """
+        super().__init__()
+
+        self.cycle_in_epochs = cycle_in_epochs
+        self.verbose = verbose
+
+    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+        if self.verbose:
+            print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.teacher_forcing}")
+
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+        if trainer.current_epoch == 0:  # do not change teacher forcing at the start of training
+            return
+
+        if trainer.current_epoch % self.cycle_in_epochs == 0:
+            trainer.model.teacher_forcing = not trainer.model.teacher_forcing
+
+        if self.verbose:
+            print(
+                f"{self.__class__.__name__}: teacher forcing = {trainer.model.teacher_forcing}"
+                f" at epoch {trainer.current_epoch}"
+            )
