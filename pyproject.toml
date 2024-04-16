@@ -74,9 +74,9 @@ module = [
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-# source: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 filterwarnings = [
     "error",
+    "ignore::DeprecationWarning",  # used to filter deprecation warning from lightning/pytorch/__init__.py:37
     "ignore::UserWarning",
     'ignore:function ham\(\) is deprecated:DeprecationWarning',
 ]
