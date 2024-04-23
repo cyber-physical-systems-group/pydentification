@@ -1,44 +1,10 @@
 import lightning.pytorch as pl
 import pytest
-import torch
-from torch import Tensor
-from torch.nn import Module
 from torch.utils.data import DataLoader
 
 from pydentification.training.lightning.callbacks import CyclicTeacherForcing
 
-from .mocks import RandDataset, StepAheadModule
-
-
-class MockPredictionTrainer(pl.LightningModule):
-    def __init__(
-        self,
-        module: Module,
-        teacher_forcing: bool = False,
-    ):
-        super().__init__()
-
-        self.module = module
-        self.teacher_forcing = teacher_forcing
-
-    def configure_optimizers(self) -> dict:
-        return {"optimizer": torch.optim.Adam(self.module.parameters())}
-
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
-        # return 0 loss as torch.Variable with gradient to align with required interface
-        return torch.autograd.Variable(torch.Tensor([float(0)]), requires_grad=True)
-
-    def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
-        # return 0 loss as torch.Variable with gradient to align with required interface
-        return torch.autograd.Variable(torch.Tensor([float(0)]), requires_grad=True)
-
-    def predict_step(self, batch: tuple[Tensor, Tensor]):
-        x, y = batch
-        return self.module(x)
-
-    def on_train_epoch_end(self) -> None:
-        # log teacher forcing status at the end of each epoch with key to distinguish epochs
-        self.log_dict({f"teacher_forcing_at_{self.current_epoch}": self.teacher_forcing}, on_epoch=True, on_step=False)
+from .mocks import RandDataset, StepAheadModule, ZeroLossPredictionTrainer
 
 
 @pytest.mark.parametrize(
@@ -56,7 +22,9 @@ class MockPredictionTrainer(pl.LightningModule):
 )
 def test_cyclic_teacher_forcing(cycle_in_epochs: int, max_epochs: int, expected: list[bool]):
     # start from teacher forcing enabled
-    trainable_module = MockPredictionTrainer(module=StepAheadModule(), teacher_forcing=True)
+    trainable_module = ZeroLossPredictionTrainer(
+        module=StepAheadModule(), teacher_forcing=True, log_attrs={"teacher_forcing"}
+    )
     dataloader = DataLoader(RandDataset(size=10, shape=(10, 1)), batch_size=1, shuffle=False)
 
     trainer = pl.Trainer(
@@ -67,5 +35,8 @@ def test_cyclic_teacher_forcing(cycle_in_epochs: int, max_epochs: int, expected:
 
     trainer.fit(trainable_module, dataloader)
     # each epoch teacher forcing is logged with key to distinguish epochs
-    teacher_forcing_history = [bool(v.item()) for v in trainer.logged_metrics.values()]
-    assert teacher_forcing_history == expected
+    teacher_forcing_history = {
+        key: bool(value) for key, value in trainer.logged_metrics.items() if key.startswith("teacher_forcing")
+    }
+
+    assert list(teacher_forcing_history.values()) == expected
