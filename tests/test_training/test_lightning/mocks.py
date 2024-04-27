@@ -96,7 +96,6 @@ class FunctionLossPredictionTrainer(pl.LightningModule):
         loss_fn: Callable[[int], Tensor],
         teacher_forcing: bool = False,
         full_residual_connection: bool = False,
-        log_attrs: set[str] = frozenset(),
     ):
         super().__init__()
 
@@ -111,11 +110,15 @@ class FunctionLossPredictionTrainer(pl.LightningModule):
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         loss_value = self.loss_fn(self.current_epoch)
-        return torch.autograd.Variable(torch.Tensor([loss_value]), requires_grad=True)
+        loss = torch.autograd.Variable(torch.Tensor([loss_value]), requires_grad=True)
+        self.log("train_loss", loss)
+        return loss
 
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         loss_value = self.loss_fn(self.current_epoch)
-        return torch.autograd.Variable(torch.Tensor([loss_value]), requires_grad=True)
+        loss = torch.autograd.Variable(torch.Tensor([loss_value]), requires_grad=True)
+        self.log("val_loss", loss)
+        return loss
 
     def predict_step(self, batch: tuple[Tensor, Tensor]):
         x, y = batch
@@ -126,12 +129,11 @@ class FunctionLossPredictionTrainer(pl.LightningModule):
         Log attributes given in __init__ to the logger after each epoch.
         Each key is the epoch number and value is dict of attributes and their values after the epoch.
         """
+        time_steps = self.trainer.datamodule.n_forward_time_steps
+
+        self.log_dict({f"n_forward_time_steps_at_{self.current_epoch}": time_steps}, on_epoch=True, on_step=False)
         self.log_dict({f"teacher_forcing_at_{self.current_epoch}": self.teacher_forcing}, on_epoch=True, on_step=False)
-        self.log_dict(
-            {f"full_residual_connection_at_{self.current_epoch}": self.full_residual_connection},
-            on_epoch=True,
-            on_step=False,
-        )
+
         # log learning rate for each epoch for each optimizer and its parameter groups
         for i, optimizer in enumerate(self.trainer.optimizers):
             for param_group in optimizer.param_groups:
