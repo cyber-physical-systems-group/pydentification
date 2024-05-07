@@ -106,7 +106,8 @@ class FunctionLossPredictionTrainer(pl.LightningModule):
         self.full_residual_connection = full_residual_connection
 
     def configure_optimizers(self) -> dict:
-        return {"optimizer": torch.optim.Adam(self.module.parameters())}
+        # initialize optimizer with learning rate 1 to make tests easier to read
+        return {"optimizer": torch.optim.Adam(self.module.parameters(), lr=1)}
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         loss_value = self.loss_fn(self.current_epoch)
