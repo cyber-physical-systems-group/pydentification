@@ -1,5 +1,6 @@
 from bisect import bisect_right
 from collections import Counter
+from contextlib import redirect_stdout
 from typing import Any, Literal, Sequence
 
 import lightning.pytorch as pl
@@ -281,12 +282,22 @@ class CombinedAutoRegressionCallback(pl.Callback):
         self.initial_lr = None
         self.initial_teacher_forcing = None
 
-    def is_better(self, current: float, best: float) -> bool:
-        if self.threshold_mode == "rel":
-            return current < best * (float(1) - self.threshold)
+    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+        self.initial_lr = trainer.optimizers[0].param_groups[0]["lr"]
+        self.initial_teacher_forcing = trainer.model.teacher_forcing
 
-        else:  # self.threshold_mode == "abs":
-            return current < best - self.threshold
+    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
+        current = trainer.callback_metrics.get(self.monitor)
+
+        if current is None:
+            raise RuntimeError(f"{self.__class__.__name__}: metric {self.monitor} not found in callback_metrics!")
+
+        if self.detect_plateau(current):
+            if self.verbose:
+                self._on_plateau(trainer)
+            else:
+                with redirect_stdout(None):  # silence all prints
+                    self._on_plateau(trainer)
 
     def detect_plateau(self, current: float) -> bool:
         if self.is_better(current, self.best):
@@ -301,21 +312,41 @@ class CombinedAutoRegressionCallback(pl.Callback):
         else:
             return False
 
+    def is_better(self, current: float, best: float) -> bool:
+        if self.threshold_mode == "rel":
+            return current < best * (float(1) - self.threshold)
+
+        else:  # self.threshold_mode == "abs":
+            return current < best - self.threshold
+
+    def _on_plateau(self, trainer: pl.Trainer) -> None:
+        print(f"{self.__class__.__name__}: plateau detected at epoch {trainer.current_epoch}")
+
+        switch = self.cycles[self.current_cycle]
+        self.current_cycle += 1
+
+        if switch == "ar_length":
+            self.switch_ar_length(trainer)
+        elif switch == "teacher_forcing":
+            self.switch_teacher_forcing(trainer)
+        elif switch == "learning_rate":
+            self.switch_learning_rate(trainer)
+
+        if self.current_cycle == len(self.cycles):
+            self._on_cycle_end(trainer)
+
     def switch_ar_length(self, trainer: pl.Trainer):
         new_length = trainer.datamodule.n_forward_time_steps * self.ar_length_factor
 
         if new_length > self.max_length:
-            if self.verbose:
-                print(f"{self.__class__.__name__}: maximum length reached, not increasing")
+            print(f"{self.__class__.__name__}: maximum length reached, not increasing")
             return  # exit function is new length is greater than maximum length
 
-        if self.verbose:
-            print(f"{self.__class__.__name__}: teacher forcing = {new_length}")
+        print(f"{self.__class__.__name__}: teacher forcing = {new_length}")
         trainer.datamodule.n_forward_time_steps = new_length
 
     def switch_teacher_forcing(self, trainer: pl.Trainer) -> None:
-        if self.verbose:
-            print(f"{self.__class__.__name__}: teacher forcing = {not trainer.model.teacher_forcing}")
+        print(f"{self.__class__.__name__}: teacher forcing = {not trainer.model.teacher_forcing}")
         trainer.model.teacher_forcing = not trainer.model.teacher_forcing
 
     def switch_learning_rate(self, trainer: pl.Trainer) -> None:
@@ -325,43 +356,19 @@ class CombinedAutoRegressionCallback(pl.Callback):
         for optimizer in trainer.optimizers:
             for param_group in optimizer.param_groups:
                 new_lr = param_group["lr"] * self.lr_factor
-                if self.verbose:
-                    print(f"{self.__class__.__name__}: learning rate = {new_lr}")
+                print(f"{self.__class__.__name__}: learning rate = {new_lr}")
                 param_group["lr"] = new_lr
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
-        self.initial_lr = trainer.optimizers[0].param_groups[0]["lr"]
-        self.initial_teacher_forcing = trainer.model.teacher_forcing
+    def _on_cycle_end(self, trainer: pl.Trainer) -> None:
+        print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
+        if self.reset_learning_rate:
+            self._reset_lr(trainer)
+        if self.reset_teacher_forcing:
+            trainer.model.teacher_forcing = self.initial_teacher_forcing
+
+        self.current_cycle = 0
 
     def _reset_lr(self, trainer: pl.Trainer) -> None:
         for optimizer in trainer.optimizers:
             for param_group in optimizer.param_groups:
                 param_group["lr"] = self.initial_lr
-
-    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
-        current = trainer.callback_metrics.get(self.monitor)
-        if current is None:
-            raise RuntimeError(f"{self.__class__.__name__}: metric {self.monitor} not found in callback_metrics!")
-        if self.detect_plateau(current):
-            if self.verbose:
-                print(f"{self.__class__.__name__}: plateau detected at epoch {trainer.current_epoch}")
-
-            switch = self.cycles[self.current_cycle]
-            self.current_cycle += 1
-
-            if switch == "ar_length":
-                self.switch_ar_length(trainer)
-            elif switch == "teacher_forcing":
-                self.switch_teacher_forcing(trainer)
-            elif switch == "learning_rate":
-                self.switch_learning_rate(trainer)
-
-            if self.current_cycle == len(self.cycles):
-                if self.verbose:
-                    print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
-                if self.reset_learning_rate:
-                    self._reset_lr(trainer)
-                if self.reset_teacher_forcing:
-                    trainer.model.teacher_forcing = self.initial_teacher_forcing
-
-                self.current_cycle = 0
