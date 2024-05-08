@@ -241,6 +241,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         max_length: float = float("inf"),
         verbose: bool = False,
         reset_learning_rate: bool = False,
+        reset_teacher_forcing: bool = False,
     ):
         """
         :param cycles: list of three strings, each must be one of {"ar_length", "teacher_forcing", "learning_rate"}
@@ -253,6 +254,8 @@ class CombinedAutoRegressionCallback(pl.Callback):
         :param threshold_mode: one of {"rel", "abs"}, defaults to "rel"
         :param max_length: maximum auto-regression length, defaults to no limit (infinite length)
         :param verbose: if True, prints the auto-regression length when it is changed
+        :param reset_learning_rate: if True, resets the learning rate to initial value at the end of the cycle
+        :param reset_teacher_forcing: if True, resets the teacher forcing to initial value at the end of the cycle
         """
         if any([c for c in cycles if c not in {"ar_length", "teacher_forcing", "learning_rate"}]):
             raise ValueError(
@@ -270,11 +273,13 @@ class CombinedAutoRegressionCallback(pl.Callback):
         self.max_length = max_length
         self.verbose = verbose
         self.reset_learning_rate = reset_learning_rate
+        self.reset_teacher_forcing = reset_teacher_forcing
         # placeholders and running variables
         self.current_cycle = 0
         self.best = float("inf")
         self.num_bad_epochs = 0
         self.initial_lr = None
+        self.initial_teacher_forcing = None
 
     def is_better(self, current: float, best: float) -> bool:
         if self.threshold_mode == "rel":
@@ -326,6 +331,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
         self.initial_lr = trainer.optimizers[0].param_groups[0]["lr"]
+        self.initial_teacher_forcing = trainer.model.teacher_forcing
 
     def _reset_lr(self, trainer: pl.Trainer) -> None:
         for optimizer in trainer.optimizers:
@@ -355,5 +361,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
                     print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
                 if self.reset_learning_rate:
                     self._reset_lr(trainer)
+                if self.reset_teacher_forcing:
+                    trainer.model.teacher_forcing = self.initial_teacher_forcing
 
                 self.current_cycle = 0
