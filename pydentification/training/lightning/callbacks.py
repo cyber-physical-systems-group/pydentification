@@ -1,7 +1,8 @@
+import operator
 from bisect import bisect_right
 from collections import Counter
 from contextlib import redirect_stdout
-from typing import Any, Literal, Sequence
+from typing import Any, Callable, Literal, Sequence
 
 import lightning.pytorch as pl
 
@@ -239,10 +240,11 @@ class CombinedAutoRegressionCallback(pl.Callback):
         lr_factor: float,
         threshold: float = 1e-4,
         threshold_mode: Literal["abs", "rel"] = "rel",
+        ar_length_operator: Callable[[int, int], int] = operator.mul,
         max_length: float = float("inf"),
-        verbose: bool = False,
         reset_learning_rate: bool = False,
         reset_teacher_forcing: bool = False,
+        verbose: bool = False,
     ):
         """
         :param cycles: list of three strings, each must be one of {"ar_length", "teacher_forcing", "learning_rate"}
@@ -265,26 +267,38 @@ class CombinedAutoRegressionCallback(pl.Callback):
             )
 
         self.cycles = cycles
+
         self.monitor = monitor
         self.patience = patience
+
         self.ar_length_factor = ar_length_factor
         self.lr_factor = lr_factor
+
         self.threshold = threshold
         self.threshold_mode = threshold_mode
+
+        self.ar_length_operator = ar_length_operator
         self.max_length = max_length
-        self.verbose = verbose
+
         self.reset_learning_rate = reset_learning_rate
         self.reset_teacher_forcing = reset_teacher_forcing
+
+        self.verbose = verbose
+
         # placeholders and running variables
         self.current_cycle = 0
         self.best = float("inf")
         self.num_bad_epochs = 0
-        self.initial_lr = None
+        self.initial_lr = []
         self.initial_teacher_forcing = None
 
     def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
-        self.initial_lr = trainer.optimizers[0].param_groups[0]["lr"]
         self.initial_teacher_forcing = trainer.model.teacher_forcing
+
+        for optimizer in trainer.optimizers:
+            # save initial learning rates for all optimizers and all parameter groups
+            lrs = [param_group["lr"] for param_group in optimizer.param_groups]
+            self.initial_lr.append(lrs)
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
         current = trainer.callback_metrics.get(self.monitor)
@@ -336,11 +350,14 @@ class CombinedAutoRegressionCallback(pl.Callback):
             self._on_cycle_end(trainer)
 
     def switch_ar_length(self, trainer: pl.Trainer):
-        new_length = trainer.datamodule.n_forward_time_steps * self.ar_length_factor
+        new_length = self.ar_length_operator(trainer.datamodule.n_forward_time_steps, self.ar_length_factor)
 
         if new_length > self.max_length:
             print(f"{self.__class__.__name__}: maximum length reached, not increasing")
             return  # exit function is new length is greater than maximum length
+
+        if not isinstance(new_length, int) or new_length < 1:
+            raise ValueError(f"{self.__class__.__name__}: new_length must be int and >= 1, got {new_length}")
 
         print(f"{self.__class__.__name__}: teacher forcing = {new_length}")
         trainer.datamodule.n_forward_time_steps = new_length
@@ -369,6 +386,6 @@ class CombinedAutoRegressionCallback(pl.Callback):
         self.current_cycle = 0
 
     def _reset_lr(self, trainer: pl.Trainer) -> None:
-        for optimizer in trainer.optimizers:
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = self.initial_lr
+        for optimizer, initial_lr in zip(trainer.optimizers, self.initial_lr, strict=True):
+            for param_group, param_group_lr in zip(optimizer.param_groups, initial_lr, strict=True):
+                param_group["lr"] = param_group_lr
