@@ -148,10 +148,10 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
 
     def is_better(self, current: float, best: float) -> bool:
         if self.threshold_mode == "rel":
-            return current < best * (float(1) - self.threshold)
+            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
 
         else:  # self.threshold_mode == "abs":
-            return current < best - self.threshold
+            return (current < best - self.threshold).item()  # type: ignore
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
         current = trainer.callback_metrics.get(self.monitor)
@@ -314,10 +314,10 @@ class CombinedAutoRegressionCallback(pl.Callback):
 
     def is_better(self, current: float, best: float) -> bool:
         if self.threshold_mode == "rel":
-            return current < best * (float(1) - self.threshold)
+            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
 
         else:  # self.threshold_mode == "abs":
-            return current < best - self.threshold
+            return (current < best - self.threshold).item()  # type: ignore
 
     def _on_plateau(self, trainer: pl.Trainer) -> None:
         print(f"{self.__class__.__name__}: plateau detected at epoch {trainer.current_epoch}")
