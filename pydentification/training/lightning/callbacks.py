@@ -1,31 +1,13 @@
-from abc import abstractmethod
+import operator
 from bisect import bisect_right
 from collections import Counter
-from typing import Any, Literal, Sequence
+from contextlib import redirect_stdout
+from typing import Any, Callable, Literal, Sequence
 
 import lightning.pytorch as pl
 
 
-class AbstractAutoRegressionLengthScheduler(pl.Callback):
-    """
-    Interface for auto-regression length scheduler
-
-    The scheduler is used to control the length of auto-regression in prediction training, following the idea that
-    shorter auto-regression is easier to learn and longer auto-regression is harder to learn, so model should see more
-    of shorter auto-regression early in the training.
-
-    :warning: the callback is meant to be used with `LightningPredictionTrainingModule` and `PredictionDataModule`.
-    """
-
-    def __init__(self):
-        ...
-
-    @abstractmethod
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
-        ...
-
-
-class StepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
+class StepAutoRegressionLengthScheduler(pl.Callback):
     """
     Increases the length of auto-regression by gamma every step_size epochs.
     Works as StepLR scheduler, but increasing the length (given as int!) instead of decaying.
@@ -71,7 +53,7 @@ class StepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
                 )
 
 
-class MultiStepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthScheduler):
+class MultiStepAutoRegressionLengthScheduler(pl.Callback):
     """
     Increases the length of auto-regression by gamma once the number of epoch reaches one of the milestones.
     Works as MultiStepLR scheduler, but increasing the length (given as int!) instead of decaying.
@@ -117,7 +99,7 @@ class MultiStepAutoRegressionLengthScheduler(AbstractAutoRegressionLengthSchedul
             )
 
 
-class IncreaseAutoRegressionLengthOnPlateau(AbstractAutoRegressionLengthScheduler):
+class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
     """
     Increases the length of auto-regression by factor once the monitored quantity stops improving.
     Works as ReduceLROnPlateau scheduler, but increasing the length (given as int!) instead of decaying learning rate.
@@ -135,7 +117,7 @@ class IncreaseAutoRegressionLengthOnPlateau(AbstractAutoRegressionLengthSchedule
         factor: int,
         threshold: float = 1e-4,
         threshold_mode: Literal["abs", "rel"] = "rel",
-        max_length: int | None = None,
+        max_length: float = float("inf"),
         verbose: bool = False,
     ):
         """
@@ -167,10 +149,10 @@ class IncreaseAutoRegressionLengthOnPlateau(AbstractAutoRegressionLengthSchedule
 
     def is_better(self, current: float, best: float) -> bool:
         if self.threshold_mode == "rel":
-            return current < best * (float(1) - self.threshold)
+            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
 
         else:  # self.threshold_mode == "abs":
-            return current < best - self.threshold
+            return (current < best - self.threshold).item()  # type: ignore
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
         current = trainer.callback_metrics.get(self.monitor)
@@ -199,3 +181,211 @@ class IncreaseAutoRegressionLengthOnPlateau(AbstractAutoRegressionLengthSchedule
                     f"{self.__class__.__name__}: new length = {trainer.datamodule.n_forward_time_steps}"
                     f" at epoch {trainer.current_epoch}"
                 )
+
+
+class CyclicTeacherForcing(pl.Callback):
+    """
+    Changes the teacher forcing status cyclically every cycle_in_epochs epochs.
+    """
+
+    def __init__(self, cycle_in_epochs: int, verbose: bool = False):
+        """
+        :param cycle_in_epochs: number of epochs after which teacher forcing is toggled
+        :param verbose: if True, prints the teacher forcing status when it is changed
+        """
+        super().__init__()
+
+        self.cycle_in_epochs = cycle_in_epochs
+        self.verbose = verbose
+
+    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+        if self.verbose:
+            print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.model.teacher_forcing}")
+
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+        if trainer.current_epoch == 0:  # do not change teacher forcing at the start of training
+            return
+
+        if trainer.current_epoch % self.cycle_in_epochs == 0:
+            trainer.model.teacher_forcing = not trainer.model.teacher_forcing
+
+        if self.verbose:
+            print(
+                f"{self.__class__.__name__}: teacher forcing = {trainer.model.teacher_forcing}"
+                f" at epoch {trainer.current_epoch}"
+            )
+
+
+class CombinedAutoRegressionCallback(pl.Callback):
+    """
+    Combined callback for auto-regression training, which changes:
+        * Auto-regression length
+        * Teacher forcing status
+        * Learning rate
+
+    The callback monitors certain metric and switches between three changes done to increase the training difficulty or
+    reduce the learning rate, in order to keep improving the model. The order of changes of the parameters is controlled
+    by callback parameters.
+
+    :note: elements on the cycles list must be one of {"ar_length", "teacher_forcing", "learning_rate"}, but there can
+           be repetitions. The order of the elements will determine the order of switches performed during the training.
+    """
+
+    def __init__(
+        self,
+        cycles: list[Literal["ar_length", "teacher_forcing", "learning_rate"]],
+        monitor: str,
+        patience: int,
+        ar_length_factor: int,
+        lr_factor: float,
+        threshold: float = 1e-4,
+        threshold_mode: Literal["abs", "rel"] = "rel",
+        ar_length_operator: Callable[[int, int], int] = operator.mul,
+        max_length: float = float("inf"),
+        reset_learning_rate: bool = False,
+        reset_teacher_forcing: bool = False,
+        verbose: bool = False,
+    ):
+        """
+        :param cycles: list of three strings, each must be one of {"ar_length", "teacher_forcing", "learning_rate"}
+                       this order will determine the order of switches performed during the training
+        :param monitor: quantity to be monitored given as key from callback_metrics dictionary of pl.Trainer
+        :param patience: number of epochs with no improvement after which auto-regression length will be increased
+        :param ar_length_factor: factor by which to increase auto-regression length. new_length = old_length * factor
+        :param lr_factor: factor by which to decrease learning rate. new_lr = old_lr * factor
+        :param threshold: threshold for measuring the new optimum, to only focus on significant changes
+        :param threshold_mode: one of {"rel", "abs"}, defaults to "rel"
+        :param max_length: maximum auto-regression length, defaults to no limit (infinite length)
+        :param verbose: if True, prints the auto-regression length when it is changed
+        :param reset_learning_rate: if True, resets the learning rate to initial value at the end of the cycle
+        :param reset_teacher_forcing: if True, resets the teacher forcing to initial value at the end of the cycle
+        """
+        if any([c for c in cycles if c not in {"ar_length", "teacher_forcing", "learning_rate"}]):
+            raise ValueError(
+                f"{self.__class__.__name__}: cycles must have length of 3 and contain only"
+                f"'ar_length', 'teacher_forcing' and 'learning_rate'!"
+            )
+
+        self.cycles = cycles
+
+        self.monitor = monitor
+        self.patience = patience
+
+        self.ar_length_factor = ar_length_factor
+        self.lr_factor = lr_factor
+
+        self.threshold = threshold
+        self.threshold_mode = threshold_mode
+
+        self.ar_length_operator = ar_length_operator
+        self.max_length = max_length
+
+        self.reset_learning_rate = reset_learning_rate
+        self.reset_teacher_forcing = reset_teacher_forcing
+
+        self.verbose = verbose
+
+        # placeholders and running variables
+        self.current_cycle = 0
+        self.best = float("inf")
+        self.num_bad_epochs = 0
+        self.initial_lr = []
+        self.initial_teacher_forcing = None
+
+    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+        self.initial_teacher_forcing = trainer.model.teacher_forcing
+
+        for optimizer in trainer.optimizers:
+            # save initial learning rates for all optimizers and all parameter groups
+            lrs = [param_group["lr"] for param_group in optimizer.param_groups]
+            self.initial_lr.append(lrs)
+
+    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
+        current = trainer.callback_metrics.get(self.monitor)
+
+        if current is None:
+            raise RuntimeError(f"{self.__class__.__name__}: metric {self.monitor} not found in callback_metrics!")
+
+        if self.detect_plateau(current):
+            if self.verbose:
+                self._on_plateau(trainer)
+            else:
+                with redirect_stdout(None):  # silence all prints
+                    self._on_plateau(trainer)
+
+    def detect_plateau(self, current: float) -> bool:
+        if self.is_better(current, self.best):
+            self.best = current
+            self.num_bad_epochs = 0
+        else:
+            self.num_bad_epochs += 1
+
+        if self.num_bad_epochs >= self.patience:
+            self.num_bad_epochs = 0  # reset bad epochs counter
+            return True
+        else:
+            return False
+
+    def is_better(self, current: float, best: float) -> bool:
+        if self.threshold_mode == "rel":
+            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
+
+        else:  # self.threshold_mode == "abs":
+            return (current < best - self.threshold).item()  # type: ignore
+
+    def _on_plateau(self, trainer: pl.Trainer) -> None:
+        print(f"{self.__class__.__name__}: plateau detected at epoch {trainer.current_epoch}")
+
+        switch = self.cycles[self.current_cycle]
+        self.current_cycle += 1
+
+        if switch == "ar_length":
+            self.switch_ar_length(trainer)
+        elif switch == "teacher_forcing":
+            self.switch_teacher_forcing(trainer)
+        elif switch == "learning_rate":
+            self.switch_learning_rate(trainer)
+
+        if self.current_cycle == len(self.cycles):
+            self._on_cycle_end(trainer)
+
+    def switch_ar_length(self, trainer: pl.Trainer):
+        new_length = self.ar_length_operator(trainer.datamodule.n_forward_time_steps, self.ar_length_factor)
+
+        if new_length > self.max_length:
+            print(f"{self.__class__.__name__}: maximum length reached, not increasing")
+            return  # exit function is new length is greater than maximum length
+
+        if not isinstance(new_length, int) or new_length < 1:
+            raise ValueError(f"{self.__class__.__name__}: new_length must be int and >= 1, got {new_length}")
+
+        print(f"{self.__class__.__name__}: teacher forcing = {new_length}")
+        trainer.datamodule.n_forward_time_steps = new_length
+
+    def switch_teacher_forcing(self, trainer: pl.Trainer) -> None:
+        print(f"{self.__class__.__name__}: teacher forcing = {not trainer.model.teacher_forcing}")
+        trainer.model.teacher_forcing = not trainer.model.teacher_forcing
+
+    def switch_learning_rate(self, trainer: pl.Trainer) -> None:
+        if self.initial_lr is None:
+            raise ValueError(f"{self.__class__.__name__}: initial_lr is None!")
+
+        for optimizer in trainer.optimizers:
+            for param_group in optimizer.param_groups:
+                new_lr = param_group["lr"] * self.lr_factor
+                print(f"{self.__class__.__name__}: learning rate = {new_lr}")
+                param_group["lr"] = new_lr
+
+    def _on_cycle_end(self, trainer: pl.Trainer) -> None:
+        print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
+        if self.reset_learning_rate:
+            self._reset_lr(trainer)
+        if self.reset_teacher_forcing:
+            trainer.model.teacher_forcing = self.initial_teacher_forcing
+
+        self.current_cycle = 0
+
+    def _reset_lr(self, trainer: pl.Trainer) -> None:
+        for optimizer, initial_lr in zip(trainer.optimizers, self.initial_lr, strict=True):
+            for param_group, param_group_lr in zip(optimizer.param_groups, initial_lr, strict=True):
+                param_group["lr"] = param_group_lr

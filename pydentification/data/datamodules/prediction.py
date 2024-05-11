@@ -1,7 +1,7 @@
 # typing is ignored due to using dynamic casting between torch, numpy and pandas, which is not properly handled by mypy
 # type: ignore
 from collections import OrderedDict
-from typing import Iterable, Optional, Union
+from typing import Iterable
 
 import lightning.pytorch as pl
 import numpy as np
@@ -59,8 +59,8 @@ class PredictionDataModule(pl.LightningDataModule):
         self,
         states: NDArray | None = None,
         *,
-        test_size: Union[int, float] = 0.5,
-        validation_size: Optional[Union[int, float]] = None,
+        test_size: int | float = 0.5,
+        validation_size: int | float | None = None,
         batch_size: int = 32,
         n_workers: int = 0,
         n_backward_time_steps: int = 1,

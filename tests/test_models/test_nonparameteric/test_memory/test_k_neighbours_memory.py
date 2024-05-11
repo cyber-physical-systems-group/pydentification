@@ -1,5 +1,6 @@
 import pytest
 import torch
+from pytest_lazy_fixtures import lf  # noqa: F401
 from torch import Tensor
 
 from pydentification.models.nonparametric.memory.abstract import MemoryManager
@@ -8,11 +9,11 @@ from pydentification.models.nonparametric.memory.abstract import MemoryManager
 @pytest.mark.parametrize(
     "memory_manager",
     [
-        pytest.lazy_fixture("nn_descent_memory_manager"),
-        pytest.lazy_fixture("exact_memory_manager"),
-        pytest.lazy_fixture("scikit_auto_memory_manager"),
-        pytest.lazy_fixture("scikit_kd_tree_memory_manager"),
-        pytest.lazy_fixture("scikit_ball_tree_memory_manager"),
+        pytest.lazy_fixtures("nn_descent_memory_manager"),
+        pytest.lazy_fixtures("exact_memory_manager"),
+        pytest.lazy_fixtures("scikit_auto_memory_manager"),
+        pytest.lazy_fixtures("scikit_kd_tree_memory_manager"),
+        pytest.lazy_fixtures("scikit_ball_tree_memory_manager"),
     ],
 )
 @pytest.mark.parametrize(
