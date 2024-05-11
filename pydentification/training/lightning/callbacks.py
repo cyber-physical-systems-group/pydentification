@@ -200,7 +200,7 @@ class CyclicTeacherForcing(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
         if self.verbose:
-            print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.teacher_forcing}")
+            print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.model.teacher_forcing}")
 
     def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
         if trainer.current_epoch == 0:  # do not change teacher forcing at the start of training
