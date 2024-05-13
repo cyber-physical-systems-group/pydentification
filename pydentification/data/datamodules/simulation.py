@@ -71,7 +71,7 @@ class StaticSimulationDataModule(pl.LightningDataModule):
         self.prepare_data_per_node = False
         self.dtype = dtype
 
-    def setup(self, stage: Literal["fit", "predict"]) -> None:
+    def setup(self, stage: Literal["fit", "predict"]):
         """
         Prepares dataset for training or testing using following steps:
         1. Split into train and test based on the time series
@@ -258,7 +258,7 @@ class SimulationDataModule(pl.LightningDataModule):
         dataset = pd.read_csv(dataset_path)
         return cls.from_pandas(dataset, input_columns, output_columns, **kwargs)
 
-    def setup(self, stage: Literal["fit", "test", "predict"]) -> None:
+    def setup(self, stage: Literal["fit", "test", "predict"]):
         """
         Prepares dataset for training, validation or testing using following steps:
         1. Split into train and test based on the time series

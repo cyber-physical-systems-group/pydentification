@@ -155,7 +155,7 @@ class ExampleCallback(pl.Callback):
         self.overwrite_after_n_epochs = overwrite_after_n_epochs
         self.overwrite_to = overwrite_to
 
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any):
         if trainer.current_epoch >= self.overwrite_after_n_epochs:
             trainer.datamodule.n_forward_time_steps = self.overwrite_to  # overwrite
 ```
