@@ -47,7 +47,7 @@ def switch_learning_rate(trainer: pl.Trainer, lr_factor: float, name: str | None
             param_group["lr"] = new_lr
 
 
-def reset_lr(trainer: pl.Trainer, initial_lrs: list[list[float]]) -> None:
+def reset_lr(trainer: pl.Trainer, initial_lrs: list[list[float]]):
     for optimizer, initial_lr in zip(trainer.optimizers, initial_lrs, strict=True):
         for param_group, param_group_lr in zip(optimizer.param_groups, initial_lr, strict=True):
             param_group["lr"] = param_group_lr
