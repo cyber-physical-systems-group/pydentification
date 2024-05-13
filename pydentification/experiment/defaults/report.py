@@ -5,7 +5,7 @@ from pydentification.experiment.reporters import report_metrics, report_predicti
 from pydentification.metrics import regression_metrics
 
 
-def report_fn(model: pl.LightningModule, trainer: pl.Trainer, dm: pl.LightningDataModule) -> None:
+def report_fn(model: pl.LightningModule, trainer: pl.Trainer, dm: pl.LightningDataModule):
     """Logs the experiment results to W&B"""
     y_hat = trainer.predict(model, datamodule=dm)
     y_pred = torch.cat(y_hat).numpy()

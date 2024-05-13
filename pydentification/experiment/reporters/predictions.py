@@ -21,7 +21,7 @@ def _compose_prefix(prefix: str, key: str) -> str:
     return f"{prefix}/{key}" if bool(prefix) else key
 
 
-def report_metrics(metrics: dict[str, float], prefix: str = "") -> None:
+def report_metrics(metrics: dict[str, float], prefix: str = ""):
     """
     :param metrics: dictionary of metrics computed for given experiment
     :param prefix: additional prefix to prepend to the metric key,
@@ -31,7 +31,7 @@ def report_metrics(metrics: dict[str, float], prefix: str = "") -> None:
     wandb.log(metrics)
 
 
-def report_prediction_plot(targets: NDArray, predictions: NDArray, prefix: str = "", plot_error: bool = True) -> None:
+def report_prediction_plot(targets: NDArray, predictions: NDArray, prefix: str = "", plot_error: bool = True):
     """
     :param targets: array of targets for given experiment test dataset
     :param predictions: array of model predictions
