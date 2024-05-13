@@ -26,7 +26,7 @@ class NNDescentMemoryManager(MemoryManager):
         self.transform = transform
         self.index = None  # build deferred until first query, it takes significant amount of time
 
-    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]):
         """
         Build index for nearest neighbors search over memory using `NNDescent`
 
@@ -50,7 +50,7 @@ class NNDescentMemoryManager(MemoryManager):
 
         return self.index.neighbor_graph
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device):
         if device != torch.device("cpu"):
             raise ValueError("NNDescentMemoryManager only supports CPU device!")
 

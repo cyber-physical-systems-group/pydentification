@@ -43,7 +43,7 @@ class SklearnMemoryManager(MemoryManager):
         self.algorithm = algorithm
         self.parameters = parameters
 
-    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]):
         """
         :param memory: tensor of indexed data points to search for nearest neighbors
         :param targets: tensor of target values corresponding to the memory points, can be any number of tensors
@@ -57,7 +57,7 @@ class SklearnMemoryManager(MemoryManager):
         self.index = NearestNeighbors(n_neighbors=self.k, algorithm=self.algorithm, **self.parameters)
         self.index.fit(memory)
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device):
         """Move memory manager to given device"""
         self.memory = self.memory.to(device)
         self.targets = tuple(target.to(device) for target in self.targets)

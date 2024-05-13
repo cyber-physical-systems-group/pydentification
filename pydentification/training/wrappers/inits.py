@@ -3,7 +3,7 @@ from torch.nn import Module
 
 
 @torch.no_grad()
-def reset_parameters(module: Module) -> None:
+def reset_parameters(module: Module):
     """
     Reset parameters of given module, if it has reset_parameters method implemented
 
