@@ -4,6 +4,15 @@ import lightning.pytorch as pl
 
 
 def is_better(current: float, best: float, threshold: float, threshold_mode: Literal["abs", "rel"]) -> bool:
+    """
+    Check if current value is better than the best value. Used for plateau detection.
+
+    :param current: current metric value to compare.
+    :param best: best metric value to compare.
+    :param threshold: threshold for improvement.
+    :param threshold_mode: how to interpret the threshold: "abs" is absolute or "rel" is relative,
+                           which means that the threshold is a fraction of the best value.
+    """
     if threshold_mode == "rel":
         return current < best * (float(1) - threshold)
 
@@ -14,6 +23,14 @@ def is_better(current: float, best: float, threshold: float, threshold_mode: Lit
 def switch_autoregression_length(
     trainer: pl.Trainer, target_length: int, max_length: float = float("inf"), name: str | None = None
 ):
+    """
+    Switches the autoregression length in the model.
+
+    :param trainer: pl.Trainer instance, its datamodule will be modified (needs to be PredictionDataModule).
+    :param target_length: new autoregression length, must be int and >= 1.
+    :param max_length: maximum autoregression length, if new length is greater than this, it will not be increased.
+    :param name: name of the function for logging.
+    """
     name = name or "functional.switch_autoregression_length"
 
     if target_length > max_length:
@@ -28,6 +45,12 @@ def switch_autoregression_length(
 
 
 def switch_teacher_forcing(trainer: pl.Trainer, name: str | None = None):
+    """
+    Switches the teacher forcing mode in the model.
+
+    :param trainer: pl.Trainer instance in training mode, its model will be modified.
+    :param name: name of the function for logging.
+    """
     name = name or "functional.switch_teacher_forcing"
 
     if not hasattr(trainer.model, "teacher_forcing"):
@@ -38,6 +61,13 @@ def switch_teacher_forcing(trainer: pl.Trainer, name: str | None = None):
 
 
 def switch_learning_rate(trainer: pl.Trainer, lr_factor: float, name: str | None = None):
+    """
+    Multiplies all learning rates in all optimizer and parameter groups by the factor.
+
+    :param trainer: pl.Trainer instance in training mode, its optimizer(s) will be modified.
+    :param lr_factor: factor by which to multiply all learning rates, should follow: 0 > LR_FACTOR > 1
+    :param name: name of the function for logging.
+    """
     name = name or "functional.switch_learning_rate"
 
     for optimizer in trainer.optimizers:
@@ -48,6 +78,12 @@ def switch_learning_rate(trainer: pl.Trainer, lr_factor: float, name: str | None
 
 
 def reset_lr(trainer: pl.Trainer, initial_lrs: list[list[float]]):
+    """
+    Resets all learning rates in all optimizer and parameter groups to the initial values.
+
+    :param trainer: pl.Trainer instance in training mode, its optimizer(s) will be modified.
+    :param initial_lrs: list of lists of initial learning rates for each optimizer and parameter group.
+    """
     for optimizer, initial_lr in zip(trainer.optimizers, initial_lrs, strict=True):
         for param_group, param_group_lr in zip(optimizer.param_groups, initial_lr, strict=True):
             param_group["lr"] = param_group_lr
