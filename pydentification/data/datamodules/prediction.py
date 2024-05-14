@@ -27,7 +27,7 @@ class TensorDatasetCache:
         self.cache_size = cache_size
         self.cache = OrderedDict()
 
-    def add(self, key: int, dataset: TensorDataset) -> None:
+    def add(self, key: int, dataset: TensorDataset):
         if key in self.cache:
             return  # already in cache
 
@@ -130,7 +130,7 @@ class PredictionDataModule(pl.LightningDataModule):
         dataset = pd.read_csv(dataset_path)
         return cls.from_pandas(dataset, columns, **kwargs)
 
-    def setup(self, stage: str | None = None) -> None:
+    def setup(self, stage: str | None = None):
         """
         Prepares dataset for training and test by splitting the data into training and test sets
         The windows are generated dynamically using the parameter passed to each dataloader

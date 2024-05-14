@@ -20,12 +20,12 @@ class MemoryManager(ABC):
         ...
 
     @abstractmethod
-    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]):
         """Prepare memory manager for use, for example build index for nearest neighbors search"""
         ...
 
     @abstractmethod
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device):
         """Move memory manager to given device"""
         ...
 

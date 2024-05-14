@@ -63,7 +63,7 @@ class MaskedLinear(nn.Module):
         bias: bool = True,
         device: str | None = None,
         dtype: torch.dtype | None = None,
-    ) -> None:
+    ):
         """
         For parameters docstrings see nn.Linear
         source: https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear
@@ -83,7 +83,7 @@ class MaskedLinear(nn.Module):
 
         self.reset_parameters()
 
-    def reset_parameters(self) -> None:
+    def reset_parameters(self):
         # following implementation from nn.Linear
         nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:

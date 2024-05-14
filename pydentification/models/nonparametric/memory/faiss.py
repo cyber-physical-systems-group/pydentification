@@ -34,7 +34,7 @@ class FaissMemoryManager(MemoryManager):
         self.targets: Tensor | None = None
         self.faiss_index: faiss.Index | None = None  # type: ignore
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device):
         """
         Move memory manager to given device. This does not affect the device algorithm is running on,
         just the device on which memory is returned. To run algorithm on GPU, use `gpu` parameter in constructor.
@@ -42,7 +42,7 @@ class FaissMemoryManager(MemoryManager):
         self.memory = self.memory.to(device)
         self.targets = self.targets.to(device)
 
-    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]):
         if self.transform is not None:
             memory = self.transform.before_prepare(memory)
 

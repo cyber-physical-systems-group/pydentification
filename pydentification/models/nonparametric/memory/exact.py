@@ -23,7 +23,7 @@ class ExactMemoryManager(MemoryManager):
         self.memory: Tensor | None = None
         self.targets: Tensor | None = None
 
-    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]) -> None:
+    def prepare(self, memory: Tensor, targets: Tensor | tuple[Tensor, ...]):
         """
         :param memory: tensor of indexed data points to search for nearest neighbors
         :param targets: tensor of target values corresponding to the memory points, can be any number of tensors
@@ -34,7 +34,7 @@ class ExactMemoryManager(MemoryManager):
         self.memory = memory  # store entire tensors in memory for exact search
         self.targets = targets
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device):
         """Move memory manager to given device"""
         self.memory = self.memory.to(device)
         self.targets = self.targets.to(device)

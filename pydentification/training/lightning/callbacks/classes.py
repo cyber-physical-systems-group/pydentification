@@ -6,6 +6,8 @@ from typing import Any, Callable, Literal, Sequence
 
 import lightning.pytorch as pl
 
+from . import functional
+
 
 class StepAutoRegressionLengthScheduler(pl.Callback):
     """
@@ -33,18 +35,19 @@ class StepAutoRegressionLengthScheduler(pl.Callback):
     def _get_closed_form_ar_length(self, epoch: int) -> int:
         return self.base_length * self.gamma ** (epoch // self.step_size)
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
             print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
         self.base_length = trainer.datamodule.n_forward_time_steps
 
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any):
         if self.base_length is None:
             raise RuntimeError("{self.__class__.__name__}: base_length is None!")
 
         if trainer.current_epoch % self.step_size == 0:
-            trainer.datamodule.n_forward_time_steps = self._get_closed_form_ar_length(trainer.current_epoch)
+            new_length = self._get_closed_form_ar_length(trainer.current_epoch)
+            functional.switch_autoregression_length(trainer, new_length, name=self.__class__.__name__)
 
             if self.verbose:
                 print(
@@ -80,17 +83,18 @@ class MultiStepAutoRegressionLengthScheduler(pl.Callback):
         milestones = sorted(self.milestones.elements())
         return self.base_length * self.gamma ** bisect_right(milestones, epoch)
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
             print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
         self.base_length = trainer.datamodule.n_forward_time_steps
 
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any):
         if self.base_length is None:
             raise RuntimeError("MultiStepAutoRegressionLengthScheduler: base_length is None")
 
-        trainer.datamodule.n_forward_time_steps = self._get_closed_form_ar_length(trainer.current_epoch)
+        new_length = self._get_closed_form_ar_length(trainer.current_epoch)
+        functional.switch_autoregression_length(trainer, new_length, name=self.__class__.__name__)
 
         if self.verbose:
             print(
@@ -143,23 +147,18 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
         self.best = float("inf")
         self.num_bad_epochs = 0
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
             print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
-    def is_better(self, current: float, best: float) -> bool:
-        if self.threshold_mode == "rel":
-            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
+    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any):
+        name = self.__class__.__name__
+        current = trainer.callback_metrics.get(self.monitor).item()
 
-        else:  # self.threshold_mode == "abs":
-            return (current < best - self.threshold).item()  # type: ignore
-
-    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
-        current = trainer.callback_metrics.get(self.monitor)
         if current is None:
-            raise RuntimeError(f"{self.__class__.__name__}: metric {self.monitor} not found in callback_metrics!")
+            raise RuntimeError(f"{name}: metric {self.monitor} not found in callback_metrics!")
 
-        if self.is_better(current, self.best):
+        if functional.is_better(current, self.best, self.threshold, self.threshold_mode):
             self.best = current
             self.num_bad_epochs = 0
         else:
@@ -167,18 +166,13 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
 
         if self.num_bad_epochs >= self.patience:
             new_length = trainer.datamodule.n_forward_time_steps * self.factor
+            functional.switch_autoregression_length(trainer, new_length, max_length=self.max_length, name=name)
 
-            if new_length > self.max_length:
-                if self.verbose:
-                    print(f"{self.__class__.__name__}: maximum length reached, not increasing")
-                return  # exit function is new length is greater than maximum length
-
-            trainer.datamodule.n_forward_time_steps = new_length
             self.num_bad_epochs = 0
 
             if self.verbose:
                 print(
-                    f"{self.__class__.__name__}: new length = {trainer.datamodule.n_forward_time_steps}"
+                    f"{name}: new length = {trainer.datamodule.n_forward_time_steps}"
                     f" at epoch {trainer.current_epoch}"
                 )
 
@@ -198,16 +192,16 @@ class CyclicTeacherForcing(pl.Callback):
         self.cycle_in_epochs = cycle_in_epochs
         self.verbose = verbose
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
             print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.model.teacher_forcing}")
 
-    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_epoch_start(self, trainer: pl.Trainer, _: Any):
         if trainer.current_epoch == 0:  # do not change teacher forcing at the start of training
             return
 
         if trainer.current_epoch % self.cycle_in_epochs == 0:
-            trainer.model.teacher_forcing = not trainer.model.teacher_forcing
+            functional.switch_teacher_forcing(trainer, name=self.__class__.__name__)
 
         if self.verbose:
             print(
@@ -292,7 +286,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         self.initial_lr = []
         self.initial_teacher_forcing = None
 
-    def on_train_start(self, trainer: pl.Trainer, _: Any) -> None:
+    def on_train_start(self, trainer: pl.Trainer, _: Any):
         self.initial_teacher_forcing = trainer.model.teacher_forcing
 
         for optimizer in trainer.optimizers:
@@ -300,8 +294,8 @@ class CombinedAutoRegressionCallback(pl.Callback):
             lrs = [param_group["lr"] for param_group in optimizer.param_groups]
             self.initial_lr.append(lrs)
 
-    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any) -> None:
-        current = trainer.callback_metrics.get(self.monitor)
+    def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any):
+        current = trainer.callback_metrics.get(self.monitor).item()
 
         if current is None:
             raise RuntimeError(f"{self.__class__.__name__}: metric {self.monitor} not found in callback_metrics!")
@@ -314,7 +308,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
                     self._on_plateau(trainer)
 
     def detect_plateau(self, current: float) -> bool:
-        if self.is_better(current, self.best):
+        if functional.is_better(current, self.best, self.threshold, self.threshold_mode):
             self.best = current
             self.num_bad_epochs = 0
         else:
@@ -326,66 +320,31 @@ class CombinedAutoRegressionCallback(pl.Callback):
         else:
             return False
 
-    def is_better(self, current: float, best: float) -> bool:
-        if self.threshold_mode == "rel":
-            return (current < best * (float(1) - self.threshold)).item()  # type: ignore
-
-        else:  # self.threshold_mode == "abs":
-            return (current < best - self.threshold).item()  # type: ignore
-
-    def _on_plateau(self, trainer: pl.Trainer) -> None:
-        print(f"{self.__class__.__name__}: plateau detected at epoch {trainer.current_epoch}")
+    def _on_plateau(self, trainer: pl.Trainer):
+        name = self.__class__.__name__
+        print(f"{name}: plateau detected at epoch {trainer.current_epoch}")
 
         switch = self.cycles[self.current_cycle]
         self.current_cycle += 1
 
         if switch == "ar_length":
-            self.switch_ar_length(trainer)
+            length = self.ar_length_operator(trainer.datamodule.n_forward_time_steps, self.ar_length_factor)
+            functional.switch_autoregression_length(trainer, length, max_length=self.max_length, name=name)
         elif switch == "teacher_forcing":
-            self.switch_teacher_forcing(trainer)
+            functional.switch_teacher_forcing(
+                trainer,
+            )
         elif switch == "learning_rate":
-            self.switch_learning_rate(trainer)
+            functional.switch_learning_rate(trainer, lr_factor=self.lr_factor, name=name)
 
         if self.current_cycle == len(self.cycles):
             self._on_cycle_end(trainer)
 
-    def switch_ar_length(self, trainer: pl.Trainer):
-        new_length = self.ar_length_operator(trainer.datamodule.n_forward_time_steps, self.ar_length_factor)
-
-        if new_length > self.max_length:
-            print(f"{self.__class__.__name__}: maximum length reached, not increasing")
-            return  # exit function is new length is greater than maximum length
-
-        if not isinstance(new_length, int) or new_length < 1:
-            raise ValueError(f"{self.__class__.__name__}: new_length must be int and >= 1, got {new_length}")
-
-        print(f"{self.__class__.__name__}: teacher forcing = {new_length}")
-        trainer.datamodule.n_forward_time_steps = new_length
-
-    def switch_teacher_forcing(self, trainer: pl.Trainer) -> None:
-        print(f"{self.__class__.__name__}: teacher forcing = {not trainer.model.teacher_forcing}")
-        trainer.model.teacher_forcing = not trainer.model.teacher_forcing
-
-    def switch_learning_rate(self, trainer: pl.Trainer) -> None:
-        if self.initial_lr is None:
-            raise ValueError(f"{self.__class__.__name__}: initial_lr is None!")
-
-        for optimizer in trainer.optimizers:
-            for param_group in optimizer.param_groups:
-                new_lr = param_group["lr"] * self.lr_factor
-                print(f"{self.__class__.__name__}: learning rate = {new_lr}")
-                param_group["lr"] = new_lr
-
-    def _on_cycle_end(self, trainer: pl.Trainer) -> None:
+    def _on_cycle_end(self, trainer: pl.Trainer):
         print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
         if self.reset_learning_rate:
-            self._reset_lr(trainer)
+            functional.reset_lr(trainer, self.initial_lr)
         if self.reset_teacher_forcing:
             trainer.model.teacher_forcing = self.initial_teacher_forcing
 
         self.current_cycle = 0
-
-    def _reset_lr(self, trainer: pl.Trainer) -> None:
-        for optimizer, initial_lr in zip(trainer.optimizers, self.initial_lr, strict=True):
-            for param_group, param_group_lr in zip(optimizer.param_groups, initial_lr, strict=True):
-                param_group["lr"] = param_group_lr

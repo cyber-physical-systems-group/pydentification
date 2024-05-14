@@ -119,7 +119,7 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         """
         return cls(network=trained_network, **kwargs)
 
-    def setup(self, stage: Literal["fit", "predict"]) -> None:
+    def setup(self, stage: Literal["fit", "predict"]):
         """
         This method is called by lightning to set up the model before training or prediction.
         It is used to prepare memory manager for nonparametric estimator with training data.
