@@ -84,3 +84,30 @@ class IRFFTModule(Module):
     def forward(self, inputs: Tensor) -> Tensor:
         outputs = torch.fft.irfft(inputs, n=self.n_time_steps, norm=self.norm, dim=1)
         return outputs.to(self.dtype)
+
+
+class MatrixFFTModule(Module):
+    """
+    Module computes 2D Fourier Transform for any input.
+
+    It processes tensors with shape (BATCH, TIME_STEPS, SYSTEM_DIMENSIONS, SYSTEM_DIMENSIONS). For processing inputs of
+    system with single state dimension pass unsqueezed Tensor with shape: (BATCH, TIME_STEPS, 1, 1).
+    """
+
+    def __init__(self, n_time_steps: int | None = None, dtype: torch.dtype = torch.cfloat):
+        """
+        :param n_time_steps: number of time to produce steps, see torch.fft.fft2 for details
+        :param dtype: output data type, defaults to cfloat and should be complex
+                      otherwise will cause loss of information after the RFFT transform
+        """
+        super(MatrixFFTModule, self).__init__()
+
+        self.n_time_steps = n_time_steps
+        self.dtype = dtype
+
+        self.requires_grad_(False)  # non-trainable layer
+        self.fft_matrix = torch.fft.fft2(torch.eye(n_time_steps, dtype=dtype))
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        outputs = torch.einsum("btdi,ij->btdj", inputs, self.fft_matrix)
+        return outputs.to(self.dtype)
