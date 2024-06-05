@@ -40,7 +40,7 @@ def switch_autoregression_length(
     if not isinstance(target_length, int) or target_length < 1:
         raise ValueError(f"{name}: new_length must be int and >= 1, got {target_length}")
 
-    print(f"{name}: teacher forcing = {target_length}")
+    print(f"{name}: auto-regression length = {target_length}")
     trainer.datamodule.n_forward_time_steps = target_length
 
 
