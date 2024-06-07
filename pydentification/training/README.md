@@ -53,7 +53,11 @@ trainer = pl.Trainer(
 
 Combined callback connects switching between decreasing the learning rate, toggling teacher forcing on and off and 
 increasing the auto-regression length. It should not be used with other callbacks that change the same parameters, as
-this might lead to some unexpected behaviour. 
+this might lead to some unexpected behaviour. Also, the callback might not work as intended with `EarlyStopping`
+callback, since `EarlyStopping` counts epochs without improvements in absolute terms, irrespective of the changes in
+the length and teacher forcing (which might increase the loss, since they make the problem harder). Currently, to
+achieve similar regularisation effect, `max_length` and `stop_after_max_length` parameters can be used. This would 
+cause the training to stop, after defined maximum length of the sequence is reached.
 
 The order of switches of the parameters is given as list (with repetitions possible) in the `cycles` parameter. It can
 for example decrease learning rate 3 times, switch teacher forcing and increase auto-regression length. The callback

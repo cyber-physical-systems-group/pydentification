@@ -236,6 +236,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         threshold_mode: Literal["abs", "rel"] = "rel",
         ar_length_operator: Callable[[int, int], int] = operator.mul,
         max_length: float = float("inf"),
+        stop_after_max_length: bool = False,
         reset_learning_rate: bool = False,
         reset_teacher_forcing: bool = False,
         verbose: bool = False,
@@ -250,9 +251,10 @@ class CombinedAutoRegressionCallback(pl.Callback):
         :param threshold: threshold for measuring the new optimum, to only focus on significant changes
         :param threshold_mode: one of {"rel", "abs"}, defaults to "rel"
         :param max_length: maximum auto-regression length, defaults to no limit (infinite length)
-        :param verbose: if True, prints the auto-regression length when it is changed
+        :param stop_after_max_length: if True, stops the training after reaching the maximum length
         :param reset_learning_rate: if True, resets the learning rate to initial value at the end of the cycle
         :param reset_teacher_forcing: if True, resets the teacher forcing to initial value at the end of the cycle
+        :param verbose: if True, prints the auto-regression length when it is changed
         """
         if any([c for c in cycles if c not in {"ar_length", "teacher_forcing", "learning_rate"}]):
             raise ValueError(
@@ -273,6 +275,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
 
         self.ar_length_operator = ar_length_operator
         self.max_length = max_length
+        self.stop_after_max_length = stop_after_max_length
 
         self.reset_learning_rate = reset_learning_rate
         self.reset_teacher_forcing = reset_teacher_forcing
@@ -330,6 +333,9 @@ class CombinedAutoRegressionCallback(pl.Callback):
         if switch == "ar_length":
             length = self.ar_length_operator(trainer.datamodule.n_forward_time_steps, self.ar_length_factor)
             functional.switch_autoregression_length(trainer, length, max_length=self.max_length, name=name)
+
+            if length >= self.max_length >= self.stop_after_max_length:
+                trainer.should_stop = True
         elif switch == "teacher_forcing":
             functional.switch_teacher_forcing(
                 trainer,
