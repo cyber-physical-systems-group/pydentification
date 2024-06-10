@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Literal
 
 import numpy as np
 import pytest
@@ -29,26 +29,29 @@ def count_trainable_parameters(model: Module) -> int:
         {lambda t: np.zeros(t.shape)},
     ],
 )
-def test_real_fourier_transforms(function_set: set[Callable], time_array: NDArray):
+@pytest.mark.parametrize("implementation", ["rfft", "matmul"])
+def test_real_fourier_transforms(
+    function_set: set[Callable], implementation: Literal["rfft", "matmul"], time_array: NDArray
+):
     """
-    Test checks if applying forward and backward Fourier transforms (implemented as torch.modules)
+    Test checks if applying forward and backward Fourier transforms (implemented as `torch.Module`)
     returns the same input with precision up to 3 decimal places
     """
     inputs = np.column_stack([f(time_array) for f in function_set])
     inputs = torch.from_numpy(inputs).unsqueeze(dim=0)  # convert to batch with single tensor
 
     model = torch.nn.Sequential(
-        fourier.RFFTModule(),
-        fourier.IRFFTModule(),
+        fourier.RFFTModule(n_time_steps=inputs.size(1), implementation=implementation),
+        fourier.IRFFTModule(n_time_steps=inputs.size(1), implementation=implementation),
     )
 
     with torch.no_grad():
-        outputs = model(inputs)
+        outputs = model(inputs.to(torch.float32))
 
     np.testing.assert_almost_equal(inputs.numpy().squeeze(), outputs.numpy().squeeze(), decimal=3)
 
 
-@pytest.mark.parametrize("model", [fourier.RFFTModule, fourier.CFFTModule, fourier.IRFFTModule])
+@pytest.mark.parametrize("model", [fourier.RFFTModule, fourier.IRFFTModule])
 def test_non_trainable(model: Module):
     """Tests if transforms implemented as modules are not-trainable"""
     assert count_trainable_parameters(model()) == 0  # type: ignore
