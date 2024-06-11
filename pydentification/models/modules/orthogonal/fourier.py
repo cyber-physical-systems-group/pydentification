@@ -1,3 +1,6 @@
+from functools import cached_property
+from typing import Literal
+
 import torch
 from torch import Tensor
 from torch.nn import Module
@@ -11,9 +14,16 @@ class RFFTModule(Module):
     state dimension pass unsqueezed Tensor with shape: (BATCH, TIME_STEPS, 1).
     """
 
-    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.cfloat):
+    def __init__(
+        self,
+        n_time_steps: int | None = None,
+        implementation: Literal["rfft", "matmul"] = "rfft",
+        norm: str | None = None,
+        dtype: torch.dtype = torch.cfloat,
+    ):
         """
         :param n_time_steps: number of time to produce steps, see torch.fft.rfft for details
+        :param implementation: implementation of RFFT, "rfft" uses torch.fft.rfft, "matmul" uses matrix multiplication
         :param norm: norm of RFFT, see torch.fft.rfft for details
         :param dtype: output data type, defaults to cfloat and should be complex
                       otherwise will cause loss of information after the RFFT transform
@@ -21,41 +31,23 @@ class RFFTModule(Module):
         super(RFFTModule, self).__init__()
 
         self.n_input_time_steps = n_time_steps
+        self.implementation = implementation
         self.norm = norm
         self.dtype = dtype
 
         self.requires_grad_(False)
 
+    @cached_property
+    def fft_matrix(self) -> Tensor:
+        """Precompute FFT matrix for matmul implementation."""
+        return torch.fft.fft2(torch.eye(self.n_input_time_steps, dtype=self.dtype))
+
     def forward(self, inputs: Tensor) -> Tensor:
-        outputs = torch.fft.rfft(inputs, n=self.n_input_time_steps, norm=self.norm, dim=1)
-        return outputs.to(self.dtype)
+        if self.implementation == "rfft":
+            outputs = torch.fft.rfft(inputs, n=self.n_input_time_steps, norm=self.norm, dim=1)
+        else:  # implementation == "matmul"
+            outputs = torch.matmul(self.fft_matrix, inputs.to(self.fft_matrix.dtype))
 
-
-class CFFTModule(Module):
-    """
-    Module computes Fourier Transform for any input.
-
-    It processes tensors with shape (BATCH, TIME_STEPS, SYSTEM_DIMENSIONS). For processing inputs of system with single
-    state dimension pass unsqueezed Tensor with shape: (BATCH, TIME_STEPS, 1).
-    """
-
-    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.cfloat):
-        """
-        :param n_time_steps: number of time to produce steps, see torch.fft.fft2 for details
-        :param norm: norm of FFT, see torch.fft.fft2 for details
-        :param dtype: output data type, defaults to cfloat and should be complex
-                      otherwise will cause loss of information after the RFFT transform
-        """
-        super(CFFTModule, self).__init__()
-
-        self.n_time_steps = n_time_steps
-        self.norm = norm
-        self.dtype = dtype
-
-        self.requires_grad_(False)  # non-trainable layer
-
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        outputs = torch.fft.fft2(inputs, norm=self.norm, n=self.n_time_steps, dim=1)
         return outputs.to(self.dtype)
 
 
@@ -67,20 +59,36 @@ class IRFFTModule(Module):
     single state dimension pass unsqueezed Tensor with shape: (BATCH, FREQUENCY_MODELS, 1).
     """
 
-    def __init__(self, n_time_steps: int | None = None, norm: str | None = None, dtype: torch.dtype = torch.float32):
+    def __init__(
+        self,
+        n_time_steps: int | None = None,
+        implementation: Literal["rfft", "matmul"] = "rfft",
+        norm: str | None = None,
+        dtype: torch.dtype = torch.cfloat,
+    ):
         """
         :param n_time_steps: number of time to produce steps, see torch.fft.irfft for details
+        :param implementation: implementation of IRFFT, "rfft" uses torch.fft.irfft, "matmul" uses matrix multiplication
         :param norm: norm of IRFFT, see torch.fft.irfft for details
         :param dtype: output data type, for IRFFT should be real data type
         """
         super(IRFFTModule, self).__init__()
 
         self.n_time_steps = n_time_steps
+        self.implementation = implementation
         self.norm = norm
         self.dtype = dtype
 
         self.requires_grad_(False)
 
+    @cached_property
+    def ifft_matrix(self) -> Tensor:
+        """Precompute FFT matrix for matmul implementation."""
+        return torch.fft.ifft2(torch.eye(self.n_time_steps, dtype=self.dtype))
+
     def forward(self, inputs: Tensor) -> Tensor:
-        outputs = torch.fft.irfft(inputs, n=self.n_time_steps, norm=self.norm, dim=1)
+        if self.implementation == "rfft":
+            outputs = torch.fft.irfft(inputs, n=self.n_time_steps, norm=self.norm, dim=1)
+        else:  # implementation == "matmul"
+            outputs = torch.matmul(self.ifft_matrix, inputs.to(self.ifft_matrix.dtype))
         return outputs.to(self.dtype)
