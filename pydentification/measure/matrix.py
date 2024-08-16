@@ -25,3 +25,8 @@ def unitarity(matrix: Tensor) -> float:
     norm = torch.linalg.norm(measure, ord="fro")
 
     return torch.exp(-1 * norm / math.sqrt(n * m)).item()
+
+
+def eigenvalues(matrix: Tensor) -> Tensor:
+    """Function for measuring the eigenvalues of a matrix."""
+    return torch.linalg.eigvals(matrix)
