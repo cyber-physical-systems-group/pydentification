@@ -9,7 +9,7 @@ from .functional import conjugate_transpose
 def unitarity(matrix: Tensor) -> float:
     """
     Function for measuring the unitarity of a matrix in range 0 to 1 using Frobenius norm.
-    For formuals and explanation, see pydentification/measure/README.md and tests/test_measure/test_unitarity.py.
+    For formulae and explanation, see pydentification/measure/README.md and tests/test_measure/test_unitarity.py.
     """
     n, m = matrix.size()
 
