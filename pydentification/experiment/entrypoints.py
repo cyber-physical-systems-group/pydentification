@@ -44,6 +44,7 @@ def run_sweep_step(
     runtime: RuntimeContext, project_name: str, dataset_config: dict[str, Any], experiment_config: dict[str, Any]
 ):
     with wandb.init(reinit=True):
+        wandb.mark_preempting()
         parameters = wandb.config  # dynamically generated model settings by W&B sweep
 
         run_training(
