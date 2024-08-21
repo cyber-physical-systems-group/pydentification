@@ -56,15 +56,15 @@ def run_sweep_step(
         )
 
 
-def run(data: str, experiment: str, resume: str, runtime: RuntimeContext, run_id: str | None = None):
+def run(data: str, experiment: str, resume: str, runtime: RuntimeContext):
     """
     Run single experiment with given configuration.
 
     :param data: dataset configuration
     :param experiment: experiment configuration
     :param runtime: runtime context with code executing the training and all preparations
-    :param resume: resume training from a given run_id
-    :param run_id: run_id of the run to resume
+    :param resume: resume training from a given run_id, this needs to load existing model from checkpoint and set
+                   the training state and optimizer state correctly, otherwise unexpected behavior may occur
     """
     dataset_config = yaml.safe_load(open(data))
     experiment_config = yaml.safe_load(open(experiment))
