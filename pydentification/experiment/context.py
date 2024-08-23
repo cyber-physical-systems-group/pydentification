@@ -26,23 +26,26 @@ class RuntimeContext(ABC):
     @staticmethod
     @abstractmethod
     def model_fn(
-        name: str, config: dict[str, Any], parameters: dict[str, Any]
+        name: str, config: dict[str, Any], parameters: dict[str, Any], checkpoint_path: str | None = None
     ) -> tuple[pl.LightningModule, pl.Trainer]:
         """
         :param name: name of the W&B project, will be used for logging with callbacks
         :param config: static configuration, for example timeout, validation-size etc.
         :param parameters: dynamic experiment configuration, for example model settings or batch-size
+        :param checkpoint_path: path to checkpoint for resuming training, can be None
         """
+        ...
 
     @staticmethod
     @abstractmethod
     def train_fn(
-        model: pl.LightningModule, trainer: pl.Trainer, dm: pl.LightningDataModule
+        model: pl.LightningModule, trainer: pl.Trainer, dm: pl.LightningDataModule, checkpoint_path: str | None = None
     ) -> tuple[pl.LightningModule, pl.Trainer]:
         """
         :param model: LightningModule instance, returned from model_fn
         :param trainer: Trainer instance, returned from model_fn
         :param dm: LightningDataModule instance, returned from input_fn
+        :param checkpoint_path: path to checkpoint for resuming training, can be None
 
         :return: trained model and trainer
         """
