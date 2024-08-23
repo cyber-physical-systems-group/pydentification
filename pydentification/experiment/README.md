@@ -115,3 +115,30 @@ sweep_parameters:
   n_hidden_state_variables: [1, 4, 8, 16]
   activation: [leaky_relu, relu, gelu, sigmoid, tanh]
 ```
+
+## Resuming
+
+The experiment entrypoint allows runs to be resumed from checkpoints (but not sweeps!). To use the feature
+`pl.callbacks.ModelCheckpoint` or similar needs to be used to store model and trainer state. Trainer state will contain
+all the needed information to resume training, like current epoch, optimizer state and others.
+
+To resume training, `resume` parameter needs to be used passing dict config (ideally YAML can be stored in or JSON file).
+It needs to provide W&B resume mode (see: https://docs.wandb.ai/guides/runs/resuming), run ID and path to the checkpoint.
+
+The run id will be reused, if `must` resume mode is used, otherwise it can create new W&B run. The weights and optimzier
+state will be reused. Note, that the code can be changed between runs, for example to fix the bug. This can introduce 
+unwanted behavior. To be sure W&B has a snapshot of the code, it is recommended to use `must` mode.
+
+### Example Config
+
+```yaml
+resume_mode: must  # see: https://docs.wandb.ai/guides/runs/resuming
+run_id: xyz123ab
+checkpoint_path: models/xyz123ab/epoch=100-step=10000.ckpt
+```
+
+### What to do with sweeps?
+
+To restart sweep, it is best to resume single run (sweeps can create checkpoints as well). Run ID can be easily found
+in the W&B dashboard. Single interesting run can be resumed on its own and other runs would need to be restarted in 
+whole new sweep.
