@@ -4,7 +4,7 @@ import pytest
 import torch
 from torch import Tensor
 
-from pydentification.models.networks.transformer import CausalDelayLineFeedforward, DynamicalSelfAttention, MaskedLinear
+from pydentification.models.networks import transformer
 
 
 def change_time_series_signal(signal: Tensor, change_step: int, value: float) -> Tensor:
@@ -29,7 +29,7 @@ def change_time_series_signal(signal: Tensor, change_step: int, value: float) ->
 )
 def test_masked_linear_causality(kwargs: dict[str, Any], shape: tuple, change_step: int):
     torch.manual_seed(42)  # needed for second assert
-    module = MaskedLinear(**kwargs)
+    module = transformer.MaskedLinear(**kwargs)
 
     with torch.no_grad():
         reference = module(torch.ones(shape))  # type: ignore
@@ -65,7 +65,44 @@ def test_masked_linear_causality(kwargs: dict[str, Any], shape: tuple, change_st
 )
 def test_masked_delay_line_causality(kwargs: dict[str, Any], shape: tuple, change_step: int):
     torch.manual_seed(42)  # needed for second assert
-    module = CausalDelayLineFeedforward(**kwargs)
+    module = transformer.CausalDelayLineFeedforward(**kwargs)
+    module = transformer.DelayLineFeedforward(**kwargs)
+
+    with torch.no_grad():
+        reference = module(torch.ones(shape))  # type: ignore
+        # change at given time step to two
+        changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
+
+        # check that the change is only at the given time step
+        assert torch.allclose(reference[:, :change_step], changed[:, :change_step])
+        # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
+        assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
+
+
+@pytest.mark.parametrize(
+    ["kwargs", "shape", "change_step"],
+    (
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 1
+        ({"n_time_steps": 10, "n_state_variables": 1}, (1, 10, 1), 5),
+        ({"n_time_steps": 10, "n_state_variables": 1, "bias": False}, (1, 10, 1), 5),  # with bias
+        ({"n_time_steps": 10, "n_state_variables": 1, "skip_connection": True}, (1, 10, 1), 5),  # with skip connection
+        ({"n_time_steps": 10, "n_state_variables": 1}, (5, 10, 1), 5),  # with higher batch size
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 5
+        ({"n_time_steps": 10, "n_state_variables": 5}, (1, 10, 5), 5),
+        ({"n_time_steps": 10, "n_state_variables": 5, "bias": False}, (1, 10, 5), 5),  # with bias
+        ({"n_time_steps": 10, "n_state_variables": 5, "skip_connection": True}, (1, 10, 5), 5),  # with skip connection
+        ({"n_time_steps": 10, "n_state_variables": 5}, (5, 10, 5), 5),  # with higher batch size
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 5
+        # change input early
+        ({"n_time_steps": 10, "n_state_variables": 1}, (1, 10, 1), 1),
+        ({"n_time_steps": 10, "n_state_variables": 1, "bias": False}, (1, 10, 1), 1),  # with bias
+        ({"n_time_steps": 10, "n_state_variables": 1, "skip_connection": True}, (1, 10, 1), 1),  # with skip connection
+        ({"n_time_steps": 10, "n_state_variables": 1}, (5, 10, 1), 1),  # with higher batch size
+    ),
+)
+def test_masked_delay_line_causality(kwargs: dict[str, Any], shape: tuple, change_step: int):
+    torch.manual_seed(42)  # needed for second assert
+    module = transformer.CausalDelayLineFeedforward(**kwargs)
 
     with torch.no_grad():
         reference = module(torch.ones(shape))  # type: ignore
@@ -109,7 +146,7 @@ def test_masked_delay_line_causality(kwargs: dict[str, Any], shape: tuple, chang
 )
 def test_masked_self_attention_causality(kwargs: dict[str, Any], shape: tuple, change_step: int):
     torch.manual_seed(42)  # needed for second assert
-    module = DynamicalSelfAttention(**dict(is_causal=True, **kwargs))  # only test causal variant
+    module = transformer.DynamicalSelfAttention(**dict(is_causal=True, **kwargs))  # only test causal variant
 
     with torch.no_grad():
         reference = module(torch.ones(shape))  # type: ignore
