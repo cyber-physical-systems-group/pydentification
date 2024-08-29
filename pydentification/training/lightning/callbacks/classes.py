@@ -8,6 +8,8 @@ import lightning.pytorch as pl
 
 from . import functional
 
+Print = Callable[[str], None]
+
 
 class StepAutoRegressionLengthScheduler(pl.Callback):
     """
@@ -17,18 +19,20 @@ class StepAutoRegressionLengthScheduler(pl.Callback):
     Source reference: https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#StepLR
     """
 
-    def __init__(self, step_size: int, gamma: int, verbose: bool = False):
+    def __init__(self, step_size: int, gamma: int, verbose: bool = False, print_fn: Print = print):
         """
         :param step_size: period of auto-regression length increase
         :param gamma: multiplicative factor of auto-regression length increase, defaults to 2
                       :warning: must be int and >= 1
         :param verbose: if True, prints the auto-regression length when it is changed
+        :param print_fn: function for printing, defaults to built-in print, but can be replaced with logging or other
         """
         super().__init__()
 
         self.step_size = step_size
         self.gamma = gamma
         self.verbose = verbose
+        self.print_fn = print_fn
 
         self.base_length: int | None = None
 
@@ -37,7 +41,7 @@ class StepAutoRegressionLengthScheduler(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
-            print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
+            self.print_fn(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
         self.base_length = trainer.datamodule.n_forward_time_steps
 
@@ -50,7 +54,7 @@ class StepAutoRegressionLengthScheduler(pl.Callback):
             functional.switch_autoregression_length(trainer, new_length, name=self.__class__.__name__)
 
             if self.verbose:
-                print(
+                self.print_fn(
                     f"{self.__class__.__name__}: new length = {trainer.datamodule.n_forward_time_steps}"
                     f" at epoch {trainer.current_epoch}"
                 )
@@ -64,18 +68,20 @@ class MultiStepAutoRegressionLengthScheduler(pl.Callback):
     Source reference: https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#MultiStepLR
     """
 
-    def __init__(self, milestones: Sequence[int], gamma: int = 2, verbose: bool = False):
+    def __init__(self, milestones: Sequence[int], gamma: int = 2, verbose: bool = False, print_fn: Print = print):
         """
         :param milestones: sequence of epoch indices, must be increasing.
         :param gamma: multiplicative factor of auto-regression length increase, defaults to 2
                       :warning: must be int and >= 1
         :param verbose: if True, prints the auto-regression length when it is changed
+        :param print_fn: function for printing, defaults to built-in print, but can be replaced with logging or other
         """
         super().__init__()
 
         self.milestones = Counter(milestones)
         self.gamma = gamma
         self.verbose = verbose
+        self.print_fn = print_fn
 
         self.base_length: int | None = None
 
@@ -85,7 +91,7 @@ class MultiStepAutoRegressionLengthScheduler(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
-            print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
+            self.print_fn(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
         self.base_length = trainer.datamodule.n_forward_time_steps
 
@@ -97,7 +103,7 @@ class MultiStepAutoRegressionLengthScheduler(pl.Callback):
         functional.switch_autoregression_length(trainer, new_length, name=self.__class__.__name__)
 
         if self.verbose:
-            print(
+            self.print_fn(
                 f"{self.__class__.__name__}: new length = {trainer.datamodule.n_forward_time_steps}"
                 f" at epoch {trainer.current_epoch} with milestones {list(self.milestones.keys())}"
             )
@@ -123,6 +129,7 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
         threshold_mode: Literal["abs", "rel"] = "rel",
         max_length: float = float("inf"),
         verbose: bool = False,
+        print_fn: Print = print,
     ):
         """
         :param monitor: quantity to be monitored given as key from callback_metrics dictionary of pl.Trainer
@@ -132,6 +139,7 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
         :param threshold_mode: one of {"rel", "abs"}, defaults to "rel"
         :param max_length: maximum auto-regression length, defaults to None
         :param verbose: if True, prints the auto-regression length when it is changed
+        :param print_fn: function for printing, defaults to built-in print, but can be replaced with logging or other
         """
         super().__init__()
 
@@ -143,13 +151,14 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
         self.threshold_mode = threshold_mode
         self.max_length = max_length
         self.verbose = verbose
+        self.print_fn = print_fn
 
         self.best = float("inf")
         self.num_bad_epochs = 0
 
     def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
-            print(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
+            self.print_fn(f"{self.__class__.__name__}: initial length = {trainer.datamodule.n_forward_time_steps}")
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, _: Any):
         name = self.__class__.__name__
@@ -171,7 +180,7 @@ class IncreaseAutoRegressionLengthOnPlateau(pl.Callback):
             self.num_bad_epochs = 0
 
             if self.verbose:
-                print(
+                self.print_fn(
                     f"{name}: new length = {trainer.datamodule.n_forward_time_steps}"
                     f" at epoch {trainer.current_epoch}"
                 )
@@ -186,6 +195,7 @@ class CyclicTeacherForcing(pl.Callback):
         """
         :param cycle_in_epochs: number of epochs after which teacher forcing is toggled
         :param verbose: if True, prints the teacher forcing status when it is changed
+        :param print_fn: function for printing, defaults to built-in print, but can be replaced with logging or other
         """
         super().__init__()
 
@@ -194,7 +204,7 @@ class CyclicTeacherForcing(pl.Callback):
 
     def on_train_start(self, trainer: pl.Trainer, _: Any):
         if self.verbose:
-            print(f"{self.__class__.__name__}: initial teacher forcing = {trainer.model.teacher_forcing}")
+            self.print_fn(f"{self.__class__.__name__}: initial teacher forcing = {trainer.model.teacher_forcing}")
 
     def on_train_epoch_start(self, trainer: pl.Trainer, _: Any):
         if trainer.current_epoch == 0:  # do not change teacher forcing at the start of training
@@ -204,7 +214,7 @@ class CyclicTeacherForcing(pl.Callback):
             functional.switch_teacher_forcing(trainer, name=self.__class__.__name__)
 
         if self.verbose:
-            print(
+            self.print_fn(
                 f"{self.__class__.__name__}: teacher forcing = {trainer.model.teacher_forcing}"
                 f" at epoch {trainer.current_epoch}"
             )
@@ -240,6 +250,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         reset_learning_rate: bool = False,
         reset_teacher_forcing: bool = False,
         verbose: bool = False,
+        print_fn: Print = print,
     ):
         """
         :param cycles: list of three strings, each must be one of {"ar_length", "teacher_forcing", "learning_rate"}
@@ -255,6 +266,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         :param reset_learning_rate: if True, resets the learning rate to initial value at the end of the cycle
         :param reset_teacher_forcing: if True, resets the teacher forcing to initial value at the end of the cycle
         :param verbose: if True, prints the auto-regression length when it is changed
+        :param print_fn: function for printing, defaults to built-in print, but can be replaced with logging or other
         """
         if any([c for c in cycles if c not in {"ar_length", "teacher_forcing", "learning_rate"}]):
             raise ValueError(
@@ -281,6 +293,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
         self.reset_teacher_forcing = reset_teacher_forcing
 
         self.verbose = verbose
+        self.print_fn = print_fn
 
         # placeholders and running variables
         self.current_cycle = 0
@@ -325,7 +338,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
 
     def _on_plateau(self, trainer: pl.Trainer):
         name = self.__class__.__name__
-        print(f"{name}: plateau detected at epoch {trainer.current_epoch}")
+        self.print_fn(f"{name}: plateau detected at epoch {trainer.current_epoch}")
 
         switch = self.cycles[self.current_cycle]
         self.current_cycle += 1
@@ -347,7 +360,7 @@ class CombinedAutoRegressionCallback(pl.Callback):
             self._on_cycle_end(trainer)
 
     def _on_cycle_end(self, trainer: pl.Trainer):
-        print(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
+        self.print_fn(f"{self.__class__.__name__}: auto-regression callback cycle completed!")
         if self.reset_learning_rate:
             functional.reset_lr(trainer, self.initial_lr)
         if self.reset_teacher_forcing:
