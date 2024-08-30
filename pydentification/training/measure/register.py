@@ -1,11 +1,20 @@
 from typing import Callable, Iterator
 
+from torch import Tensor
 from torch.nn import Module, Parameter
 
 # callable registering parameters of neural network for given measure
 # input will be entire torch.nn.Module and output is list of names (submodule combined with parameter)
 # which will be measured by given measuring function
 RegisterCallable = Callable[[Module], Iterator[tuple[str, Parameter]]]
+# callable measuring given parameter, input is single learnable parameter and output is float or Tensor
+MeasureCallable = Callable[[Parameter], float | Tensor]
+# measure register is a 4-tuple of elements needed to run given measuring function over selected params, it consists of:
+# 1. measure name
+# 2. registering function called over all modules and parameters
+# 3. measuring function called over selected parameter returning float or Tensor
+# 4. flag if the measure is to be run after every epoch (run if given as True)
+MeasureRegister = tuple[str, RegisterCallable, MeasureCallable, bool]
 
 
 def iter_modules_and_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
