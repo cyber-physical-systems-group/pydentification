@@ -2,7 +2,6 @@ from typing import Callable, Iterator
 
 from torch.nn import Module, Parameter
 
-
 # callable registering parameters of neural network for given measure
 # input will be entire torch.nn.Module and output is list of names (submodule combined with parameter)
 # which will be measured by given measuring function
@@ -32,3 +31,22 @@ def iter_modules_and_parameters(module: Module) -> Iterator[tuple[str, Parameter
                 yield name + "." + parameter_name, parameter
             else:
                 yield parameter_name, parameter  # module name is empty
+
+
+def register_all_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
+    """Simple register for all parameters of given module."""
+    yield from iter_modules_and_parameters(module)
+
+
+def register_matrix_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
+    """Simple register for all matrix parameters of given module."""
+    for name, parameter in iter_modules_and_parameters(module):
+        if len(parameter.shape) == 2:
+            yield name, parameter
+
+
+def register_square_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
+    """Simple register for all square-matrix parameters of given module."""
+    for name, parameter in iter_modules_and_parameters(module):
+        if parameter.shape[0] == parameter.shape[1]:
+            yield name, parameter
