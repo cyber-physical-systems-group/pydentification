@@ -9,12 +9,6 @@ from torch.nn import Module, Parameter
 RegisterCallable = Callable[[Module], Iterator[tuple[str, Parameter]]]
 # callable measuring given parameter, input is single learnable parameter and output is float or Tensor
 MeasureCallable = Callable[[Parameter], float | Tensor]
-# measure register is a 4-tuple of elements needed to run given measuring function over selected params, it consists of:
-# 1. measure name
-# 2. registering function called over all modules and parameters
-# 3. measuring function called over selected parameter returning float or Tensor
-# 4. flag if the measure is to be run after every epoch (run if given as True)
-MeasureRegister = tuple[str, RegisterCallable, MeasureCallable, bool]
 
 
 def iter_modules_and_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
@@ -57,5 +51,46 @@ def register_matrix_parameters(module: Module) -> Iterator[tuple[str, Parameter]
 def register_square_parameters(module: Module) -> Iterator[tuple[str, Parameter]]:
     """Simple register for all square-matrix parameters of given module."""
     for name, parameter in iter_modules_and_parameters(module):
-        if parameter.shape[0] == parameter.shape[1]:
+        if len(parameter.shape) == 2 and parameter.shape[0] == parameter.shape[1]:
             yield name, parameter
+
+
+class MeasureRegister:
+    def __init__(
+        self,
+        name: str,
+        measure_fn: MeasureCallable,
+        register_fn: RegisterCallable = iter_modules_and_parameters,  # default to registering all parameters
+        on_train_start: bool = False,
+        on_train_end: bool = True,
+        on_train_epoch_start: bool = False,
+        on_train_epoch_end: bool = False,
+    ):
+        """
+        :param name: name of the measure, will be returned for each call
+        :param measure_fn: callable measuring single parameter of neural network
+        :param register_fn: callable registering parameters of neural network for given measure
+        :param on_train_start: whether to measure at the start of training
+        :param on_train_end: whether to measure at the end of training
+        :param on_train_epoch_start: whether to measure at the start of each epoch
+        :param on_train_epoch_end: whether to measure at the end of each epoch
+        """
+        self.name = name
+        self.measure = measure_fn
+        self.register_fn = register_fn
+
+        self.on_train_start = on_train_start
+        self.on_train_end = on_train_end
+        self.on_train_epoch_start = on_train_epoch_start
+        self.on_train_epoch_end = on_train_epoch_end
+
+        self.register: set[str] | None = None
+
+    def __call__(self, module: Module) -> tuple[str, str, float | Tensor]:
+        """Measure all registered parameters of given module"""
+        if not self.register:
+            self.register = set([name for name, _ in self.register_fn(module)])
+
+        for name, parameter in iter_modules_and_parameters(module):
+            if name in set(self.register):
+                yield self.name, name, self.measure(parameter)
