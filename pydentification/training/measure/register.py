@@ -56,6 +56,17 @@ def register_square_parameters(module: Module) -> Iterator[tuple[str, Parameter]
 
 
 class MeasureRegister:
+    """
+    Measure register is a callable object for measuring model or layer with given measure function. It can be used
+    inside pl.Callback or as standalone function. `measure_fn` and `register_fn` need to follow interfaces defined
+    by MeasureCallable and RegisterCallable.
+
+    Return type for each call is tuple of
+    * Measure name (given in `__init__`)
+    * Parameter name
+    * Measured value as float or Tensor.
+    """
+
     def __init__(
         self,
         name: str,
@@ -87,7 +98,6 @@ class MeasureRegister:
         self.register: set[str] | None = None
 
     def __call__(self, module: Module) -> tuple[str, str, float | Tensor]:
-        """Measure all registered parameters of given module"""
         if not self.register:
             self.register = set([name for name, _ in self.register_fn(module)])
 
