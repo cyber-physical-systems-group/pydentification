@@ -6,9 +6,9 @@ from typing import Any, Callable, Literal, Sequence
 
 import lightning.pytorch as pl
 
-from . import functional
+from pydentification.stubs import Print
 
-Print = Callable[[str], None]
+from . import functional
 
 
 class StepAutoRegressionLengthScheduler(pl.Callback):
