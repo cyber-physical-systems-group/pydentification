@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, Type
 
 import torch
 from torch.nn import Module, Parameter
@@ -46,3 +46,18 @@ def register_square_parameters(module: Module) -> Iterator[tuple[str, Parameter]
     for name, parameter in iter_modules_and_parameters(module):
         if len(parameter.shape) == 2 and parameter.shape[0] == parameter.shape[1]:
             yield name, parameter
+
+
+class RegisterInstances:
+    """
+    Callable class returning all modules, which are instances of given class.
+    This can be used to register all Linear, LSTM or other specific torch.nn.Module instances.
+    """
+
+    def __init__(self, instance: Type[Module]):
+        self.instance = instance
+
+    def __call__(self, module: Module) -> Iterator[tuple[str, Parameter]]:
+        for name, submodule in module.named_modules():
+            if isinstance(submodule, self.instance):
+                yield name, module

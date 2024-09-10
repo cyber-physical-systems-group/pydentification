@@ -1,15 +1,17 @@
+from typing import Type
+
 import pytest
 import torch
 from torch.nn import Module
 
 from pydentification.training.measure import register
+from pydentification.training.measure.lightning import RegisterCallable
 
 
 @pytest.mark.parametrize(
     ["model", "register_fn", "expected_names"],
     [
         # Test cases for register_all_parameters
-
         # Linear layer has two parameters (weight, bias) -> register both
         [torch.nn.Linear(10, 10), register.register_all_parameters, ["weight", "bias"]],
         # Conv2d layer has four parameters (weight, bias) -> register all
@@ -175,7 +177,6 @@ from pydentification.training.measure import register
             ],
         ],
         # Test cases for register_square_parameters
-
         # Linear layer has one matrix (weight) and one vector (bias) parameter -> register only weight
         [torch.nn.Linear(10, 10), register.register_square_parameters, ["weight"]],
         # Conv2d layer parameters has shape (out_channels, in_channels, kernel_size, kernel_size) -> 4D is not matrix
@@ -219,8 +220,52 @@ from pydentification.training.measure import register
             ],
         ],
     ],
-
 )
-def test_register_matrix_parameters(model: Module, register_fn: register.RegisterCallable, expected_names: list[str]):
+def test_register_matrix_parameters(model: Module, register_fn: RegisterCallable, expected_names: list[str]):
+    names = [name for name, _ in register_fn(model)]
+    assert expected_names == names
+
+
+@pytest.mark.parametrize(
+    ["model", "instance", "expected_names"],
+    [
+        [
+            torch.nn.Sequential(torch.nn.Linear(10, 10), torch.nn.BatchNorm1d(10), torch.nn.ReLU()),
+            torch.nn.Linear,
+            ["0"],
+        ],
+        [
+            torch.nn.Sequential(torch.nn.Linear(10, 10), torch.nn.BatchNorm1d(10), torch.nn.ReLU()),
+            torch.nn.BatchNorm1d,
+            ["1"],
+        ],
+        [
+            torch.nn.Transformer(nhead=2, num_encoder_layers=2, num_decoder_layers=2),
+            torch.nn.MultiheadAttention,
+            [
+                "encoder.layers.0.self_attn",
+                "encoder.layers.1.self_attn",
+                "decoder.layers.0.self_attn",
+                "decoder.layers.0.multihead_attn",
+                "decoder.layers.1.self_attn",
+                "decoder.layers.1.multihead_attn",
+            ],
+        ],
+        [
+            torch.nn.Transformer(nhead=2, num_encoder_layers=2, num_decoder_layers=2),
+            torch.nn.modules.linear.NonDynamicallyQuantizableLinear,
+            [
+                "encoder.layers.0.self_attn.out_proj",
+                "encoder.layers.1.self_attn.out_proj",
+                "decoder.layers.0.self_attn.out_proj",
+                "decoder.layers.0.multihead_attn.out_proj",
+                "decoder.layers.1.self_attn.out_proj",
+                "decoder.layers.1.multihead_attn.out_proj",
+            ],
+        ],
+    ],
+)
+def test_register_instances(model: Module, instance: Type, expected_names: list[str]):
+    register_fn = register.RegisterInstances(instance)
     names = [name for name, _ in register_fn(model)]
     assert expected_names == names

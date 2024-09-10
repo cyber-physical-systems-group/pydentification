@@ -194,4 +194,3 @@ def test_delay_line_causality(kwargs: dict[str, Any], shape: tuple, change_step:
         assert not torch.allclose(reference[:, :change_step], changed[:, :change_step])
         # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
         assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
-
