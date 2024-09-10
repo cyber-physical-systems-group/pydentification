@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Callable, Iterator
 
 import torch
@@ -18,6 +19,14 @@ MeasureCallable = Callable[[Parameter], float | Tensor]
 ProcessCallable = Callable[[float | Tensor], float | Tensor | dict[str, float | Tensor]]
 
 
+@dataclass
+class Measure:
+    measure_name: str
+    parameter_name: str
+    value: float | Tensor
+    representation: float | dict[str, float] | None
+
+
 class LightningMeasure:
     """
     Measure register is a callable object for measuring model or layer with given measure function. It can be used
@@ -31,11 +40,11 @@ class LightningMeasure:
     """
 
     def __init__(
-            self,
-            name: str,
-            measure_fn: MeasureCallable,
-            register_fn: RegisterCallable = iter_modules_and_parameters,  # default to registering all parameters
-            process_fn: ProcessCallable = lambda x: x,  # default to no processing
+        self,
+        name: str,
+        measure_fn: MeasureCallable,
+        register_fn: RegisterCallable = iter_modules_and_parameters,  # default to registering all parameters
+        process_fn: ProcessCallable | None = None,  # default to no processing
     ):
         """
         :param name: name of the measure, will be returned for each call
@@ -59,4 +68,7 @@ class LightningMeasure:
         for name, parameter in iter_modules_and_parameters(module):
             if name in set(self.register):
                 value = self.measure(parameter)
-                yield self.name, name, self.process_fn(value)
+                if self.process_fn:  # add post-processed representation
+                    yield Measure(self.name, name, value, self.process_fn(value))
+
+                yield Measure(self.name, name, value, None)
