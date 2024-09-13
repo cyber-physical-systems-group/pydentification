@@ -1,18 +1,10 @@
-import warnings
 from abc import ABC, abstractmethod
 
 import lightning.pytorch as pl
-from torch import Tensor
 
 from pydentification.stubs import Print
 
-try:
-    from lovely_tensors import lovely
-except ImportError:
-    warnings.warn(
-        "Missing optional dependency 'lovely-tensors'."
-        "Run `pip install lovely-tensors` or `pip install pydentification[experiment] to use `LoggingMeasureStorage`"
-    )
+from .lightning import Measure
 
 
 class AbstractMeasureStorage(ABC):
@@ -22,12 +14,12 @@ class AbstractMeasureStorage(ABC):
     """
 
     @abstractmethod
-    def store_on_epoch_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
+    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
         """Called with single measured value for each measure at the end of each epoch."""
         ...
 
     @abstractmethod
-    def store_on_train_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
         """Called with single measured value for each measure at the end of training."""
         ...
 
@@ -46,29 +38,33 @@ class LoggingMeasureStorage(AbstractMeasureStorage):
         self.print_fn = print_fn
         self.prefix = f" for {prefix}" if prefix else ""
 
-    def store_on_epoch_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
-        if isinstance(value, Tensor):
-            value = lovely(value)
-
+    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        value = measure.representation if measure.representation is not None else measure.value
         epoch = trainer.current_epoch
-        self.print_fn(f"Measure {measure_name} for {self.prefix} {parameter_name} at epoch {epoch}: {value}")
 
-    def store_on_train_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
-        if isinstance(value, Tensor):
-            value = lovely(value)
+        self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name} at epoch {epoch}: {value}")
 
-        self.print_fn(f"Measure {measure_name} for {self.prefix} {parameter_name}: {value}")
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        value = measure.representation if measure.representation is not None else measure.value
+        self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name}: {value}")
 
 
 class WandbMeasureStorage(AbstractMeasureStorage):
-    def store_on_epoch_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
-        if isinstance(value, Tensor):
-            value = lovely(value)
+    """
+    Measure storage for logging to W&B interface. It can log any data-type, which is supported by W&B, see:
+    https://docs.wandb.ai/ref/python/log and https://docs.wandb.ai/ref/python/data-types/
+    """
 
-        trainer.log(f"measure/{measure_name}/{parameter_name}", value, on_epoch=True)
+    @staticmethod
+    def store_with_wandb(module: pl.LightningModule, measure: Measure, on_epoch: bool):
+        if measure.representation is not None:
+            for key, value in measure.representation.items():
+                module.log(f"measure/{measure.name}/{measure.parameter_name}/{key}", value, on_epoch=on_epoch)
+        else:
+            module.log(f"measure/{measure.name}/{measure.parameter_name}", measure.value, on_epoch=on_epoch)
 
-    def store_on_train_end(self, trainer: pl.Trainer, measure_name: str, parameter_name: str, value: float | Tensor):
-        if isinstance(value, Tensor):
-            value = lovely(value)
+    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        self.store_with_wandb(module, measure, on_epoch=True)
 
-        trainer.log(f"measure/{measure_name}/{parameter_name}", value)
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        self.store_with_wandb(module, measure, on_epoch=False)
