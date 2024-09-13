@@ -1,10 +1,20 @@
+import json
 from abc import ABC, abstractmethod
+from enum import Enum
+from pathlib import Path
 
 import lightning.pytorch as pl
+import pandas as pd
 
 from pydentification.stubs import Print
 
 from .lightning import Measure
+
+
+class TrainingStates(Enum):
+    training: str = "training"
+    initial: str = "initial"
+    final: str = "final"
 
 
 class AbstractMeasureStorage(ABC):
@@ -68,3 +78,112 @@ class WandbMeasureStorage(AbstractMeasureStorage):
 
     def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
         self.store_with_wandb(module, measure, on_epoch=False)
+
+
+class JsonStorage(AbstractMeasureStorage):
+    """
+    Storage writing measures to JSON file, with following structure:
+    ```
+        {
+            "training":
+                {
+                    "0": {"name": "measure", "parameter": "parameter", "value": 0.0},
+                    "1": {"name": "measure", "parameter": "parameter", "value": 0.0},
+                    ...
+                },
+            "initial": ...,    # optional
+            "final": ...,  # optional
+        }
+    ```
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+
+        self.storage = {str(TrainingStates.training): {}}
+
+    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        if measure.representation is not None:
+            for key, value in measure.representation.items():
+                row = {"name": measure.name, "parameter": measure.parameter_name, "key": key, "value": value}
+                self.storage[str(TrainingStates.training)][trainer.current_epoch] = row
+        else:
+            row = {"name": measure.name, "parameter": measure.parameter_name, "value": measure.value}
+            self.storage[str(TrainingStates.training)][trainer.current_epoch] = row
+
+    def store(
+        self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: str = TrainingStates.training
+    ):
+        """
+        Store measure for given state, such as "initial" or "final". By default, "training" is used, but the parameter
+        should be properly passed from pl.Callback to recognize, which measures where from which training stage.
+        """
+        if measure.representation is not None:
+            for key, value in measure.representation.items():
+                row = {"name": measure.name, "parameter": measure.parameter_name, "key": key, "value": value}
+                self.storage[str(state)][trainer.current_epoch] = row
+        else:
+            row = {"name": measure.name, "parameter": measure.parameter_name, "value": measure.value}
+            self.storage[str(state)][trainer.current_epoch] = row
+
+    def write(self):
+        with self.path.open("w") as file:
+            json.dump(self.storage, file)
+
+
+class CSVStorage(AbstractMeasureStorage):
+    """
+    Storage writing measures to CSV file, with following structure:
+    ```
+        name,parameter,key,value,epoch,state
+        measure,linear.weight,mean,0.6,0,training
+        measure,linear.weight,std,0.1,0,training
+        measure,linear.weight,mean,0.1,1,training
+        measure,linear.weight,std,0.01,1    ,training
+        measure,linear.weight,mean,0.5,None,final
+        measure,linear.weight,std,0.2,None,final
+    ```
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.storage = []
+
+    @staticmethod
+    def compose_record(measure: Measure, epoch: int | None, state: TrainingStates):
+        if measure.representation is not None:
+            for key, value in measure.representation.items():
+                return {
+                    "name": measure.name,
+                    "parameter": measure.parameter_name,
+                    "key": key,
+                    "value": value,
+                    "epoch": epoch,
+                    "state": str(state),
+                }
+
+        else:
+            return {
+                "name": measure.name,
+                "parameter": measure.parameter_name,
+                "value": measure.value,
+                "epoch": epoch,
+                "state": str(state),
+            }
+
+    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+        record = self.compose_record(measure, trainer.current_epoch, TrainingStates.training)
+        self.storage.append(record)
+
+    def store(
+        self,
+        trainer: pl.Trainer,
+        module: pl.LightningModule,
+        measure: Measure,
+        state: TrainingStates = TrainingStates.training,
+    ):
+        record = self.compose_record(measure, None, state)
+        self.storage.append(record)
+
+    def write(self):
+        pd.DataFrame(self.storage).to_csv(self.path, index=False)
