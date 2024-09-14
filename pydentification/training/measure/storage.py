@@ -1,6 +1,5 @@
 import json
 from abc import ABC, abstractmethod
-from enum import Enum
 from pathlib import Path
 
 import lightning.pytorch as pl
@@ -9,12 +8,7 @@ import pandas as pd
 from pydentification.stubs import Print
 
 from .lightning import Measure
-
-
-class TrainingStates(Enum):
-    training: str = "training"
-    initial: str = "initial"
-    final: str = "final"
+from .states import TrainingStates
 
 
 class AbstractMeasureStorage(ABC):

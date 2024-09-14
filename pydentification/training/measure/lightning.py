@@ -6,6 +6,7 @@ from torch import Tensor
 from torch.nn import Module, Parameter
 
 from .register import iter_modules_and_parameters
+from .states import TrainingStage
 
 # callable registering parameters of neural network for given measure
 # input will be entire torch.nn.Module and output is list of names (submodule combined with parameter)
@@ -42,16 +43,20 @@ class LightningMeasure:
         self,
         name: str,
         measure_fn: MeasureCallable,
+        measure_at: TrainingStage | tuple[TrainingStage, ...] = TrainingStage.on_train_end,
         register_fn: RegisterCallable = iter_modules_and_parameters,  # default to registering all parameters
         postprocess_fn: PostProcessCallable | None = None,  # default to no processing
     ):
         """
         :param name: name of the measure, will be returned for each call
         :param measure_fn: callable measuring single parameter of neural network
+        :param measure_at: when to measure, can be single value or tuple of values from MeasureAt
+                           default is MeasureAt.on_train_end
         :param register_fn: callable registering parameters of neural network for given measure
         :param postprocess_fn: callable processing measured value, returns processed value or dictionary of values
         """
         self.name = name
+        self.measure_at = measure_at if isinstance(measure_at, TrainingStage) else frozenset(measure_at)
 
         self.measure = measure_fn
         self.register_fn = register_fn
