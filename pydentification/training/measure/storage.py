@@ -18,12 +18,7 @@ class AbstractMeasureStorage(ABC):
     """
 
     @abstractmethod
-    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        """Called with single measured value for each measure at the end of each epoch."""
-        ...
-
-    @abstractmethod
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         """Called with single measured value for each measure at the end of training."""
         ...
 
@@ -42,15 +37,17 @@ class LoggingMeasureStorage(AbstractMeasureStorage):
         self.print_fn = print_fn
         self.prefix = f" for {prefix}" if prefix else ""
 
-    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         value = measure.representation if measure.representation is not None else measure.value
-        epoch = trainer.current_epoch
 
-        self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name} at epoch {epoch}: {value}")
+        if state is not TrainingStates.training:
+            epoch = trainer.current_epoch
+            self.print_fn(
+                f"Measure {measure.name} for {self.prefix} {measure.parameter_name} at epoch {epoch}: {value}"
+            )
 
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        value = measure.representation if measure.representation is not None else measure.value
-        self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name}: {value}")
+        else:
+            self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name}: {value}")
 
 
 class WandbMeasureStorage(AbstractMeasureStorage):
@@ -67,11 +64,9 @@ class WandbMeasureStorage(AbstractMeasureStorage):
         else:
             module.log(f"measure/{measure.name}/{measure.parameter_name}", measure.value, on_epoch=on_epoch)
 
-    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        self.store_with_wandb(module, measure, on_epoch=True)
-
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        self.store_with_wandb(module, measure, on_epoch=False)
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+        on_epoch = True if state == TrainingStates.training else False
+        self.store_with_wandb(module, measure, on_epoch=on_epoch)
 
 
 class JsonStorage(AbstractMeasureStorage):
@@ -96,29 +91,31 @@ class JsonStorage(AbstractMeasureStorage):
 
         self.storage = {str(TrainingStates.training): {}}
 
-    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        if measure.representation is not None:
-            for key, value in measure.representation.items():
-                row = {"name": measure.name, "parameter": measure.parameter_name, "key": key, "value": value}
-                self.storage[str(TrainingStates.training)][trainer.current_epoch] = row
-        else:
-            row = {"name": measure.name, "parameter": measure.parameter_name, "value": measure.value}
-            self.storage[str(TrainingStates.training)][trainer.current_epoch] = row
-
-    def store(
-        self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: str = TrainingStates.training
+    def store_item(
+        self, state: TrainingStates, epoch: int, name: str, parameter_name: str, value: float, key: str | None = None
     ):
+        row = {"name": name, "parameter": parameter_name, "value": value}
+
+        if key is not None:
+            row["key"] = key
+
+        if state == TrainingStates.training:
+            self.storage[str(state)][epoch] = row
+        else:
+            self.storage[str(state)] = row
+
+    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         """
         Store measure for given state, such as "initial" or "final". By default, "training" is used, but the parameter
         should be properly passed from pl.Callback to recognize, which measures where from which training stage.
         """
         if measure.representation is not None:
             for key, value in measure.representation.items():
-                row = {"name": measure.name, "parameter": measure.parameter_name, "key": key, "value": value}
-                self.storage[str(state)][trainer.current_epoch] = row
+                # store measure with a key, mean, std, etc.
+                self.store_item(state, trainer.current_epoch, measure.name, measure.parameter_name, value, key)
         else:
-            row = {"name": measure.name, "parameter": measure.parameter_name, "value": measure.value}
-            self.storage[str(state)][trainer.current_epoch] = row
+            # store without a key for single value
+            self.store_item(state, trainer.current_epoch, measure.name, measure.parameter_name, measure.value)
 
     def write(self):
         with self.path.open("w") as file:
@@ -165,10 +162,6 @@ class CSVStorage(AbstractMeasureStorage):
                 "state": str(state),
             }
 
-    def store_epoch(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure):
-        record = self.compose_record(measure, trainer.current_epoch, TrainingStates.training)
-        self.storage.append(record)
-
     def store(
         self,
         trainer: pl.Trainer,
@@ -176,8 +169,12 @@ class CSVStorage(AbstractMeasureStorage):
         measure: Measure,
         state: TrainingStates = TrainingStates.training,
     ):
-        record = self.compose_record(measure, None, state)
-        self.storage.append(record)
+        if state is TrainingStates.training:
+            record = self.compose_record(measure, trainer.current_epoch, state)
+            self.storage.append(record)
+        else:
+            record = self.compose_record(measure, None, state)
+            self.storage.append(record)
 
     def write(self):
         pd.DataFrame(self.storage).to_csv(self.path, index=False)
