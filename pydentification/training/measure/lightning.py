@@ -65,7 +65,7 @@ class LightningMeasure:
         self.register: set[str] | None = None
 
     @torch.no_grad()
-    def __call__(self, module: Module) -> tuple[str, str, float | Tensor]:
+    def __call__(self, module: Module) -> Measure:
         if not self.register:
             self.register = set([name for name, _ in self.register_fn(module)])
 
