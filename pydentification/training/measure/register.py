@@ -1,6 +1,5 @@
 from typing import Iterator, Type
 
-import torch
 from torch.nn import Module, Parameter
 
 
