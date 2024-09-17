@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Iterator
+from typing import Callable, Iterator, Iterable, Generator
 
 import torch
 from torch import Tensor
@@ -13,7 +13,7 @@ from .states import TrainingStage
 # which will be measured by given measuring function
 RegisterCallable = Callable[[Module], Iterator[tuple[str, Parameter]]]
 # callable measuring given parameter, input is single learnable parameter and output is float or Tensor
-MeasureCallable = Callable[[Parameter], float | Tensor]
+MeasureCallable = Callable[[Parameter | Module], float | Tensor]
 # callable processing measured value, input is measured value and output is processed value
 # returns float or Tensor or dictionary of values, such as statistics or multiple measures (or Tensor measure)
 PostProcessCallable = Callable[[float | Tensor], float | Tensor | dict[str, float | Tensor]]
@@ -43,7 +43,7 @@ class LightningMeasure:
         self,
         name: str,
         measure_fn: MeasureCallable,
-        measure_at: TrainingStage | tuple[TrainingStage, ...] = TrainingStage.on_train_end,
+        measure_at: TrainingStage | Iterable[TrainingStage] = TrainingStage.on_train_end,
         register_fn: RegisterCallable = iter_modules_and_parameters,  # default to registering all parameters
         postprocess_fn: PostProcessCallable | None = None,  # default to no processing
     ):
@@ -65,7 +65,7 @@ class LightningMeasure:
         self.register: set[str] | None = None
 
     @torch.no_grad()
-    def __call__(self, module: Module) -> Measure:
+    def __call__(self, module: Module | Parameter) -> Generator[Measure, None, None]:
         if not self.register:
             self.register = set([name for name, _ in self.register_fn(module)])
 
