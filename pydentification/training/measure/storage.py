@@ -56,17 +56,20 @@ class WandbMeasureStorage(AbstractMeasureStorage):
     https://docs.wandb.ai/ref/python/log and https://docs.wandb.ai/ref/python/data-types/
     """
 
+    # lightning training states, for which self.log can be used
+    allowed_states = frozenset({TrainingStates.training, TrainingStates.initial})
+
     @staticmethod
-    def store_with_wandb(module: pl.LightningModule, measure: Measure, on_epoch: bool):
+    def store_with_wandb(module: pl.LightningModule, measure: Measure):
         if measure.representation is not None:
             for key, value in measure.representation.items():
-                module.log(f"measure/{measure.name}/{measure.parameter_name}/{key}", value, on_epoch=on_epoch)
+                module.log(f"measure/{measure.name}/{measure.parameter_name}/{key}", value, on_epoch=True)
         else:
-            module.log(f"measure/{measure.name}/{measure.parameter_name}", measure.value, on_epoch=on_epoch)
+            module.log(f"measure/{measure.name}/{measure.parameter_name}", measure.value, on_epoch=True)
 
     def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
-        on_epoch = True if state == TrainingStates.training else False
-        self.store_with_wandb(module, measure, on_epoch=on_epoch)
+        if state in self.allowed_states:
+            self.store_with_wandb(module, measure)
 
 
 class JsonStorage(AbstractMeasureStorage):
@@ -86,9 +89,8 @@ class JsonStorage(AbstractMeasureStorage):
     ```
     """
 
-    def __init__(self, path: Path):
-        self.path = path
-
+    def __init__(self, path: str | Path):
+        self.path = path if isinstance(path, Path) else Path(path)
         self.storage = {str(TrainingStates.training): {}}
 
     def store_item(
@@ -136,8 +138,8 @@ class CSVStorage(AbstractMeasureStorage):
     ```
     """
 
-    def __init__(self, path: Path):
-        self.path = path
+    def __init__(self, path: str | Path):
+        self.path = path if isinstance(path, Path) else Path(path)
         self.storage = []
 
     @staticmethod
