@@ -11,48 +11,46 @@ from .lightning import Measure
 from .states import TrainingStates
 
 
-class AbstractMeasureStorage(ABC):
+class MeasureMonitor(ABC):
     """
     Abstract interface for handling the storage of computed measures. They can be written to file or simply logged.
     The subclasses implementing this interface should be used in combination with MeasureCallback.
     """
 
     @abstractmethod
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
-        """Called with single measured value for each measure at the end of training."""
+    def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+        """Called with single measured value for each measure"""
         ...
 
-    def write(self):
+    def persist(self):
         """
-        Write stored measures to file or log. This function can be empty for storage methods writing after
-        each call, for example logging or updating storage file after each epoch to save memory for large measures.
+        Persisting method write stored measures to file or log. Called once at the end of training with no arguments.
+        Measure values should be stored by the MeasureMonitor subclasses and persistent according to the implementation.
         """
         ...
 
 
-class LoggingMeasureStorage(AbstractMeasureStorage):
-    """Simple measure storage for logging to console."""
+class LoggingMeasureMonitor(MeasureMonitor):
+    """Monitoring measures by logging to console with print or logging."""
 
     def __init__(self, print_fn: Print = print, prefix: str = ""):
         self.print_fn = print_fn
         self.prefix = f" for {prefix}" if prefix else ""
 
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+    def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         value = measure.representation if measure.representation is not None else measure.value
 
         if state is not TrainingStates.training:
-            epoch = trainer.current_epoch
-            self.print_fn(
-                f"Measure {measure.name} for {self.prefix} {measure.parameter_name} at epoch {epoch}: {value}"
-            )
-
+            suffix = f" at epoch {trainer.current_epoch}: {value}"
         else:
-            self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name}: {value}")
+            suffix = ""
+
+        self.print_fn(f"Measure {measure.name} for {self.prefix} {measure.parameter_name}: {value}{suffix}")
 
 
-class WandbMeasureStorage(AbstractMeasureStorage):
+class WandbMeasureMonitor(MeasureMonitor):
     """
-    Measure storage for logging to W&B interface. It can log any data-type, which is supported by W&B, see:
+    Measure monitor logging to W&B interface. It can log any data-type, which is supported by W&B, see:
     https://docs.wandb.ai/ref/python/log and https://docs.wandb.ai/ref/python/data-types/
     """
 
@@ -67,12 +65,12 @@ class WandbMeasureStorage(AbstractMeasureStorage):
         else:
             module.log(f"measure/{measure.name}/{measure.parameter_name}", measure.value, on_epoch=True)
 
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+    def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         if state in self.allowed_states:
             self.store_with_wandb(module, measure)
 
 
-class JsonStorage(AbstractMeasureStorage):
+class JsonMonitor(MeasureMonitor):
     """
     Storage writing measures to JSON file, with following structure:
     ```
@@ -106,7 +104,7 @@ class JsonStorage(AbstractMeasureStorage):
         else:
             self.storage[str(state)] = row
 
-    def store(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+    def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
         """
         Store measure for given state, such as "initial" or "final". By default, "training" is used, but the parameter
         should be properly passed from pl.Callback to recognize, which measures where from which training stage.
@@ -119,12 +117,12 @@ class JsonStorage(AbstractMeasureStorage):
             # store without a key for single value
             self.store_item(state, trainer.current_epoch, measure.name, measure.parameter_name, measure.value)
 
-    def write(self):
+    def persist(self):
         with self.path.open("w") as file:
             json.dump(self.storage, file)
 
 
-class CSVStorage(AbstractMeasureStorage):
+class CSVMonitor(MeasureMonitor):
     """
     Storage writing measures to CSV file, with following structure:
     ```
@@ -164,7 +162,7 @@ class CSVStorage(AbstractMeasureStorage):
                 "state": str(state),
             }
 
-    def store(
+    def log(
         self,
         trainer: pl.Trainer,
         module: pl.LightningModule,
@@ -178,5 +176,5 @@ class CSVStorage(AbstractMeasureStorage):
             record = self.compose_record(measure, None, state)
             self.storage.append(record)
 
-    def write(self):
+    def persist(self):
         pd.DataFrame(self.storage).to_csv(self.path, index=False)
