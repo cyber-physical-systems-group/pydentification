@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Iterator, Iterable, Generator
+from typing import Callable, Generator, Iterable, Iterator
 
 import torch
 from torch import Tensor

@@ -72,7 +72,7 @@ class WandbMeasureMonitor(MeasureMonitor):
 
 class JsonMonitor(MeasureMonitor):
     """
-    Storage writing measures to JSON file, with following structure:
+    Measure monitoring by writing measures to JSON file, with following structure:
     ```
         {
             "training":
@@ -91,10 +91,10 @@ class JsonMonitor(MeasureMonitor):
         self.path = path if isinstance(path, Path) else Path(path)
         self.storage = {str(TrainingStates.training): {}}
 
-    def store_item(
-        self, state: TrainingStates, epoch: int, name: str, parameter_name: str, value: float, key: str | None = None
-    ):
-        row = {"name": name, "parameter": parameter_name, "value": value}
+    def store(
+        self, state: TrainingStates, epoch: int, name: str, param_name: str, value: float, key: str | None = None
+    ):  # noqa
+        row = {"name": name, "parameter": param_name, "value": value}
 
         if key is not None:
             row["key"] = key
@@ -112,10 +112,10 @@ class JsonMonitor(MeasureMonitor):
         if measure.representation is not None:
             for key, value in measure.representation.items():
                 # store measure with a key, mean, std, etc.
-                self.store_item(state, trainer.current_epoch, measure.name, measure.parameter_name, value, key)
+                self.store(state, trainer.current_epoch, measure.name, measure.parameter_name, value, key)
         else:
             # store without a key for single value
-            self.store_item(state, trainer.current_epoch, measure.name, measure.parameter_name, measure.value)
+            self.store(state, trainer.current_epoch, measure.name, measure.parameter_name, measure.value)
 
     def persist(self):
         with self.path.open("w") as file:
@@ -141,40 +141,31 @@ class CSVMonitor(MeasureMonitor):
         self.storage = []
 
     @staticmethod
-    def compose_record(measure: Measure, epoch: int | None, state: TrainingStates):
+    def _compose(measure: Measure, epoch: int | None, state: str, value: float, key: str | None = None) -> dict:
+        """Create dictionary representing row of CSV file"""
+        return {
+            "name": measure.name,
+            "parameter": measure.parameter_name,
+            "key": key,
+            "value": value,
+            "epoch": epoch,
+            "state": state,
+        }
+
+    @staticmethod
+    def compose_records(measure: Measure, epoch: int | None, state: TrainingStates) -> list[dict]:
+        records = []
         if measure.representation is not None:
             for key, value in measure.representation.items():
-                return {
-                    "name": measure.name,
-                    "parameter": measure.parameter_name,
-                    "key": key,
-                    "value": value,
-                    "epoch": epoch,
-                    "state": str(state),
-                }
+                records.append(CSVMonitor._compose(measure, epoch, str(state), value, key))
 
-        else:
-            return {
-                "name": measure.name,
-                "parameter": measure.parameter_name,
-                "value": measure.value,
-                "epoch": epoch,
-                "state": str(state),
-            }
+        records.append(CSVMonitor._compose(measure, epoch, str(state), measure.value))
+        return records
 
-    def log(
-        self,
-        trainer: pl.Trainer,
-        module: pl.LightningModule,
-        measure: Measure,
-        state: TrainingStates = TrainingStates.training,
-    ):
-        if state is TrainingStates.training:
-            record = self.compose_record(measure, trainer.current_epoch, state)
-            self.storage.append(record)
-        else:
-            record = self.compose_record(measure, None, state)
-            self.storage.append(record)
+    def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
+        epoch = trainer.current_epoch if state is TrainingStates.training else None
+        records = self.compose_records(measure, epoch, state)
+        self.storage.extend(records)
 
     def persist(self):
         pd.DataFrame(self.storage).to_csv(self.path, index=False)
