@@ -39,8 +39,6 @@ class LightningPredictionTrainingModule(pl.LightningModule):
         self.teacher_forcing = teacher_forcing
         self.full_residual_connection = full_residual_connection
 
-        self.save_hyperparameters()
-
     def forward(self, x: Tensor) -> Tensor:
         y_hat = self.module(x)
 

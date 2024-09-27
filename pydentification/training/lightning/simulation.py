@@ -34,8 +34,6 @@ class LightningSimulationTrainingModule(pl.LightningModule):
         self.lr_scheduler = lr_scheduler
         self.loss = loss
 
-        self.save_hyperparameters()
-
     def forward(self, x: Tensor) -> Tensor:
         return self.module(x)
 

@@ -109,8 +109,6 @@ class BoundedSimulationTrainingModule(pl.LightningModule):
         if not (k is None) ^ (r is None):
             raise ValueError("Exactly one of: k and r needs to be defined!")
 
-        self.save_hyperparameters()
-
     @classmethod
     def from_pretrained(cls, trained_network: Module, **kwargs):
         """
