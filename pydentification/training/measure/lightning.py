@@ -74,5 +74,5 @@ class LightningMeasure:
                 value = self.measure(parameter)
                 if self.postprocess_fn:  # add post-processed representation
                     yield Measure(self.name, name, value, self.postprocess_fn(value))
-
-                yield Measure(self.name, name, value, None)
+                else:
+                    yield Measure(self.name, name, value, None)
