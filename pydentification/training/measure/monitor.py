@@ -92,8 +92,14 @@ class JsonMonitor(MeasureMonitor):
         self.storage = {str(TrainingStates.training): {}}
 
     def store(
-        self, state: TrainingStates, epoch: int, name: str, param_name: str, value: float, key: str | None = None
-    ):  # noqa
+        self,
+        state: TrainingStates,
+        epoch: int,
+        name: str,
+        param_name: str,
+        value: float,
+        key: str | None = None,
+    ):
         row = {"name": name, "parameter": param_name, "value": value}
 
         if key is not None:
@@ -158,8 +164,9 @@ class CSVMonitor(MeasureMonitor):
         if measure.representation is not None:
             for key, value in measure.representation.items():
                 records.append(CSVMonitor._compose(measure, epoch, str(state), value, key))
+        else:
+            records.append(CSVMonitor._compose(measure, epoch, str(state), measure.value))
 
-        records.append(CSVMonitor._compose(measure, epoch, str(state), measure.value))
         return records
 
     def log(self, trainer: pl.Trainer, module: pl.LightningModule, measure: Measure, state: TrainingStates):
