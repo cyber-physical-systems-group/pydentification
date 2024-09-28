@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import Any
 
 import lightning.pytorch as pl
@@ -11,12 +12,13 @@ class MeasureCallback(pl.Callback):
     def __init__(
         self,
         measures: list[LightningMeasure],
-        monitors: list[MeasureMonitor],
+        monitors: list[MeasureMonitor] | dict[str, list[MeasureMonitor]],
         persistent: bool = False,
     ):
         """
         :param measures: list of measures to be called, each measure is instance of LightningMeasure
-        :param monitors: list of storages to store measures, each storage is instance of AbstractMeasureStorage
+        :param monitors: list of monitor or dictionary mapping measure names to monitors
+                         if given as list, all monitoring is applied to all measures
         :param persistent: if True, measures will be stored after each call, otherwise only after on_train_end
         """
         super().__init__()
@@ -37,11 +39,19 @@ class MeasureCallback(pl.Callback):
         for measure in self.measures:
             if current_stage in measure.measure_at:
                 for value in measure(module):
-                    for monitor in self.monitors:
-                        monitor.log(trainer, module, value, state)
+                    if isinstance(self.monitors, dict):  # mapping measure names to monitors
+                        for monitor in self.monitors.get(measure.name, []):
+                            monitor.log(trainer, module, value, state)
+                    else:  # if no mapping, use all monitors for all measures
+                        for monitor in self.monitors:
+                            monitor.log(trainer, module, value, state)
 
         if write:
-            for monitor in self.monitors:
+            if isinstance(self.monitors, dict):
+                monitors = list(chain.from_iterable(self.monitors.values()))
+            else:
+                monitors = self.monitors
+            for monitor in monitors:
                 monitor.persist()
 
     def on_train_start(self, trainer: pl.Trainer, module: Any):
