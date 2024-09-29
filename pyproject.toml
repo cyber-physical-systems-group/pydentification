@@ -9,7 +9,7 @@ include = ["pydentification/*"]
 
 [project]
 name = "pydentification"
-version = "0.3.0"
+version = "0.4.0"
 description = "Toolbox for dynamical system identification with neural networks"
 license = {text = "MIT"}
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -33,6 +33,7 @@ cpu = [
 
 experiment = [
     "plotly == 5.16.1",
+    "lovely-tensors == 0.1.17",
     "wandb == 0.16.4"
 ]
 
