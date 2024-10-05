@@ -37,12 +37,8 @@ experiment = [
     "wandb == 0.16.4"
 ]
 
-nonparametric = [
-    "pynndescent == 0.5.11",
-]
-
 complete = [
-    "pydentification[cpu,experiment,nonparametric]",
+    "pydentification[cpu,experiment]",
 ]
 
 # linter and test settings
