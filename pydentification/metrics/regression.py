@@ -130,7 +130,7 @@ def normalized_root_mean_squared_error(
     @non_zero_std
     @assemble_multioutput
     def compute(y_true: NDArray, y_pred: NDArray) -> Number:
-        errors = metrics.mean_squared_error(y_true, y_pred, multioutput="raw_values", squared=False)
+        errors = metrics.root_mean_squared_error(y_true, y_pred, multioutput="raw_values")
         return errors / np.std(y_true, axis=0)
 
     return compute(y_true, y_pred, multioutput=multioutput)  # multioutput parameter is handled by wrapper
@@ -197,7 +197,7 @@ def regression_metrics(y_true: NumericSequence, y_pred: NumericSequence) -> dict
 
     return {
         "mean_squared_error": metrics.mean_squared_error(y_true, y_pred, multioutput=multioutput),
-        "root_mean_squared_error": metrics.mean_squared_error(y_true, y_pred, squared=False, multioutput=multioutput),
+        "root_mean_squared_error": metrics.root_mean_squared_error(y_true, y_pred, multioutput=multioutput),
         "mean_absolute_error": metrics.mean_absolute_error(y_true, y_pred, multioutput=multioutput),
         "max_error": metrics.max_error(y_true.flatten(), y_pred.flatten()),
         # sequences are cast to arrays in `validate_params` wrapper
