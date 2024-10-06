@@ -11,7 +11,7 @@ jobs:
         with:
           options: "--check --verbose -l 120"
           jupyter: false
-          version: "23.7.0"
+          version: "24.8.0"
 
   flake8:
     runs-on: ubuntu-latest
