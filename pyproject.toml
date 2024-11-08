@@ -23,7 +23,8 @@ dependencies = [
     "scikit-learn == 1.5.2",
     "lightning == 2.4.0",
     "PyYaml == 6.0.1",
-    "pandas == 2.2.3"
+    "pandas == 2.2.3",
+    "h5py == 3.12.1"
 ]
 
 [project.optional-dependencies]
