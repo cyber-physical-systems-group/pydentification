@@ -13,25 +13,22 @@ class ConstantLengthEmbedding(nn.Module):
 
     def __init__(
         self,
-        n_time_steps: int,
         n_input_state_variables: int,
         n_output_state_variables: int,
         bias: bool = True,
     ):
         """
-        :param n_time_steps: number of time steps in the input signal and embedding
         :param n_input_state_variables: number of state input variables
         :param n_output_state_variables: number of states to produce
         :param bias: if True bias will be used in linear operation
         """
         super(ConstantLengthEmbedding, self).__init__()
 
-        self.n_input_time_steps = n_time_steps
         self.n_input_state_variables = n_input_state_variables
         self.n_output_state_variables = n_output_state_variables
 
         self.up_projection = nn.Linear(
-            in_features=self.n_state_variables, out_features=self.n_output_state_variables, bias=bias
+            in_features=self.n_input_state_variables, out_features=self.n_output_state_variables, bias=bias
         )
 
     def forward(self, inputs: Tensor) -> Tensor:
@@ -43,7 +40,7 @@ class ShorteningCausalEmbedding(nn.Module):
     Module converting time series with shape (batch_size, n_input_time_steps, n_input_state_variables) into time series
     with shape (batch_size, n_output_time_steps, n_output_state_variables) using two learned linear transformations.
 
-    The module can be used as embedding for transformer models, which uprojects the state variables and makes the time
+    The module can be used as embedding for transformer models, which up-projects the state variables and makes the time
     series shorter. The module is always causal.
 
     It works by firstly applying single linear to all time-steps up-projecting the dimensionality. Later convolution
@@ -57,6 +54,7 @@ class ShorteningCausalEmbedding(nn.Module):
         n_output_time_steps: int,
         n_input_state_variables: int,
         n_output_state_variables: int,
+        conv_groups: int = 1,
         bias: bool = True,
     ):
         """
@@ -64,6 +62,7 @@ class ShorteningCausalEmbedding(nn.Module):
         :param n_output_time_steps: number of time steps to produce after linear operation
         :param n_input_state_variables: number of state input variables
         :param n_output_state_variables: number of states to produce
+        :param conv_groups: number of groups in convolutional layer
         :param bias: if True bias will be used in linear operation
         """
         if n_input_time_steps % n_output_time_steps != 0:
@@ -75,6 +74,7 @@ class ShorteningCausalEmbedding(nn.Module):
         self.n_output_time_steps = n_output_time_steps
         self.n_input_state_variables = n_input_state_variables
         self.n_output_state_variables = n_output_state_variables
+        self.conv_groups = conv_groups
 
         self.up_projection = nn.Linear(
             in_features=self.n_input_state_variables, out_features=self.n_output_state_variables, bias=bias
@@ -85,6 +85,7 @@ class ShorteningCausalEmbedding(nn.Module):
             out_channels=self.n_output_state_variables,
             kernel_size=self.n_input_time_steps // self.n_output_time_steps,
             stride=self.n_input_time_steps // self.n_output_time_steps,
+            groups=conv_groups,
             bias=bias,
         )
 
