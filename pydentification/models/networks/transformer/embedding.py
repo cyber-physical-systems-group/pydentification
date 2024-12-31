@@ -58,6 +58,7 @@ class ShorteningCausalEmbedding(nn.Module):
         n_input_state_variables: int,
         n_output_state_variables: int,
         bias: bool = True,
+        conv_groups: int = 1,
     ):
         """
         :param n_input_time_steps: number of time steps in the input signal
@@ -65,6 +66,8 @@ class ShorteningCausalEmbedding(nn.Module):
         :param n_input_state_variables: number of state input variables
         :param n_output_state_variables: number of states to produce
         :param bias: if True bias will be used in linear operation
+        :param conv_groups: number of groups in convolutional layer
+                            see: https://pytorch.org/docs/stable/generated/torch.nn.Conv1d.html
         """
         if n_input_time_steps % n_output_time_steps != 0:
             raise ValueError("`n_input_time_steps` must be divisible by `n_output_time_steps`!")
@@ -86,6 +89,7 @@ class ShorteningCausalEmbedding(nn.Module):
             kernel_size=self.n_input_time_steps // self.n_output_time_steps,
             stride=self.n_input_time_steps // self.n_output_time_steps,
             bias=bias,
+            groups=conv_groups,
         )
 
     def forward(self, inputs: Tensor) -> Tensor:
