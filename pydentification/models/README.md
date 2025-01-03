@@ -7,4 +7,3 @@ stacking.
 This package contains following submodules:
 * `modules` - building blocks of the models, extending PyTorch modules with custom layers, activation functions, etc.
 * `networks` - models composed of building blocks, such as transformer etc.
-* `nonparametric` - non-parametric models and supporting utils

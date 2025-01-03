@@ -2,15 +2,6 @@ import torch
 from torch import Tensor
 
 
-def bounded_linear_unit(inputs: Tensor, lower: float | Tensor, upper: float | Tensor, inplace: bool = False) -> Tensor:
-    """
-    Bounded linear activation function. It means that the output is linear in range [lower, upper] and clamped
-    outside of it to the values of the bounds. Bounds can be scalar of tensor of the same shape as inputs.
-    """
-    out = inputs if inplace else None
-    return torch.clamp(inputs, min=lower, max=upper, out=out)
-
-
 def universal_activation(inputs: Tensor, inplace: bool = False) -> Tensor:
     """
     Universal activation function, for which finite number of neurons can approximate any continuous function on

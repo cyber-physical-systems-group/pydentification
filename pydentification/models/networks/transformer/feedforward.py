@@ -49,7 +49,7 @@ class DelayLineFeedforward(nn.Module):
 class CausalDelayLineFeedforward(nn.Module):
     """
     Linear transformation of the input signal using delay line with casual mask, allowing only connections from future
-    to past time steps, which means single row of weight matrix is multiplied with each time step of the input signal.
+    to past-time steps, which means single row of weight matrix is multiplied with each time step of the input signal.
 
     For MIMO systems, different weight matrix is applied for each dimension, where each of the matrices is stored in
     MaskedLinear module in torch.nn.ModuleList.
