@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Literal
 
@@ -16,10 +17,29 @@ def save_torch(path: Path, model: torch.nn.Module, method: Literal["pt", "safete
         raise ValueError(f"Unknown method: {method}!")
 
 
-def save_fn(name: str, model: pl.LightningModule, method: Literal["pt", "safetensors"] = "safetensors"):
-    """Saves the torch model from given LightningModule to W&B"""
-    path = Path(f"models/{name}/trained-model.{method}")
-    path.parent.mkdir(parents=True, exist_ok=True)
+def save_json(path: Path, data: dict):
+    with path.open("w") as f:
+        json.dump(data, f)  # type: ignore
 
-    save_torch(path, model=model.module, method=method)  # save only the model
+
+def save_fn(
+    name: str,
+    model: pl.LightningModule,
+    method: Literal["pt", "safetensors"] = "safetensors",
+    save_hparams: bool = False,
+):
+    """
+    :param name: name of the parent directory with the model and settings
+    :param model: PyTorch model
+    :param method: method of saving the model, either "pt" or "safetensors"
+    :param save_hparams: whether to save hyperparameters in a JSON file
+    """
+    path = Path(f"models/{name}")
+    path.mkdir(parents=True, exist_ok=True)
+
+    save_torch(path / f"trained-model.{method}", model=model.module, method=method)  # save only the model
+
+    if save_hparams:
+        save_json((path / "hparams.json"), model.hparams or {})
+
     wandb.save(path)
