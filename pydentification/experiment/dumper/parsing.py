@@ -1,6 +1,9 @@
 import ast
 import textwrap
 
+import black
+import isort
+
 
 def remove_decorators(code: str, names: set[str]) -> str:
     """Removes all decorators from function definitions in the given code."""
@@ -16,3 +19,9 @@ def remove_decorators(code: str, names: set[str]) -> str:
     new_code = ast.unparse(tree)
 
     return textwrap.dedent(new_code)  # `textwrap` ensures consistent indentation
+
+
+def format_code(code: str) -> str:
+    sorted_code = isort.code(code)
+    formatted_code = black.format_str(sorted_code, mode=black.Mode(line_length=120))
+    return formatted_code
