@@ -18,6 +18,14 @@ def replace_variables(code: str, variables: dict[str, Any]) -> str:
     function = next((node for node in tree.body if isinstance(node, ast.FunctionDef)), None)
     pattern = r"\b(" + "|".join(re.escape(var) for var in variables.keys()) + r")\b"
 
+    # get function parameters and remove ones that are replaced from the definition
+    original_params = {arg.arg for arg in function.args.args}
+    params_to_remove = original_params.intersection(variables.keys())
+    new_params = [arg for arg in function.args.args if arg.arg not in params_to_remove]
+
+    function.args.args = new_params  # update function parameters in AST
+    updated_code = ast.unparse(tree)
+
     if not function:
         raise ValueError("No function definition found in the code.")
 
@@ -29,11 +37,11 @@ def replace_variables(code: str, variables: dict[str, Any]) -> str:
     # find function start position
     func_start = function.body[0].lineno - 1  # adjust line numbers
     # split code into lines and process only the function body
-    lines = code.splitlines()
+    lines = updated_code.splitlines()
     function_body_lines = lines[func_start:]
     replaced_body = [re.sub(pattern, replacer, line) for line in function_body_lines]
 
-    return "\n".join(lines[:func_start] + replaced_body)  # join lines back together
+    return textwrap.dedent("\n".join(lines[:func_start] + replaced_body))  # ensure consistent indentation
 
 
 def remove_decorators(code: str, names: set[str]) -> str:
@@ -49,7 +57,7 @@ def remove_decorators(code: str, names: set[str]) -> str:
     tree = DecoratorRemover().visit(tree)
     new_code = ast.unparse(tree)
 
-    return textwrap.dedent(new_code)  # `textwrap` ensures consistent indentation
+    return textwrap.dedent(new_code)  # ensure consistent indentation
 
 
 def format_code(code: str) -> str:
