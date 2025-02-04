@@ -3,6 +3,7 @@ import re
 import textwrap
 from typing import Any
 
+import autoflake
 import black
 import isort
 
@@ -61,6 +62,7 @@ def remove_decorators(code: str, names: set[str]) -> str:
 
 
 def format_code(code: str) -> str:
-    sorted_code = isort.code(code)
-    formatted_code = black.format_str(sorted_code, mode=black.Mode(line_length=120))
-    return formatted_code
+    code = autoflake.fix_code(code, remove_all_unused_imports=True)
+    code = isort.code(code)
+    code = black.format_str(code, mode=black.Mode(line_length=120))
+    return code
