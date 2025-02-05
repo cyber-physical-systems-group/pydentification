@@ -51,15 +51,22 @@ def remove_decorators(code: str, names: set[str]) -> str:
 
     class DecoratorRemover(ast.NodeTransformer):
         def visit_FunctionDef(self, node):
-            # loop over all decorators and remove decorators from input set by name
-            node.decorator_list = [d for d in node.decorator_list if d.id not in names]  # type: ignore
+            node.decorator_list = [
+                decorator
+                for decorator in node.decorator_list
+                if not (isinstance(decorator, ast.Name) and decorator.id in names)
+                and not (
+                    isinstance(decorator, ast.Call)  # handle decorators with arguments
+                    and isinstance(decorator.func, ast.Name)
+                    and decorator.func.id in names
+                )
+            ]
+
             return node
 
     tree = ast.parse(code)
     tree = DecoratorRemover().visit(tree)
-    new_code = ast.unparse(tree)
-
-    return textwrap.dedent(new_code)  # ensure consistent indentation
+    return ast.unparse(tree)
 
 
 def parse_imports(path: str | Path) -> str:

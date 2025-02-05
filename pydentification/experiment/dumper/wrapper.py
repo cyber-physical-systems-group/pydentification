@@ -39,6 +39,7 @@ def dump(path: str | Path, param_store: Literal["py", "json", "both"] = "py") ->
                 source_code = parsing.replace_variables(source_code, variables=parameters)
 
             # remove this decorator from the source code
+            source_code = parsing.remove_decorators(source_code, names={"dump"})
             source_code = imports + "\n" + source_code
             source_code = parsing.format_code(source_code)
 
@@ -50,5 +51,7 @@ def dump(path: str | Path, param_store: Literal["py", "json", "both"] = "py") ->
                     f.write(json.dumps(parameters, indent=4))
 
             return func(*args, **kwargs)
+
         return inner
+
     return outer
