@@ -1,6 +1,7 @@
 import ast
 import re
 import textwrap
+from pathlib import Path
 from typing import Any
 
 import autoflake
@@ -59,6 +60,18 @@ def remove_decorators(code: str, names: set[str]) -> str:
     new_code = ast.unparse(tree)
 
     return textwrap.dedent(new_code)  # ensure consistent indentation
+
+
+def parse_imports(path: str | Path) -> str:
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    imports = []
+    for line in lines:
+        if line.startswith("import") or line.startswith("from"):
+            imports.append(line.strip())
+
+    return "\n".join(imports)
 
 
 def format_code(code: str) -> str:
