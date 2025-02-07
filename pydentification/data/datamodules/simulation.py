@@ -53,6 +53,9 @@ class StaticSimulationDataModule(pl.LightningDataModule):
         batch_size: int = 32,
         dtype: torch.dtype = torch.float32,
     ):
+        if not isinstance(inputs, np.ndarray) or not isinstance(outputs, np.ndarray):
+            raise TypeError(f"Inputs and outputs must be numpy arrays! Got {type(inputs)} and {type(outputs)}!")
+
         self.inputs = inputs
         self.outputs = outputs
 

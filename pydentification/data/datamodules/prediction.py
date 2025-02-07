@@ -84,6 +84,9 @@ class PredictionDataModule(pl.LightningDataModule):
         """
         super().__init__()
 
+        if not isinstance(states, np.ndarray):
+            raise TypeError(f"States must be numpy given as numpy array, got {type(states)}!")
+
         self.states = states
 
         self.test_size = test_size
