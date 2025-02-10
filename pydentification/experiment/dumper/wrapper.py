@@ -31,8 +31,8 @@ def dump(path: str | Path, param_store: Literal["py", "json", "both"] = "py") ->
             parameters.update(kwargs)  # add keyword arguments
 
             source_code = inspect.getsource(func)
-            source_filename = inspect.getfile(func)
-            imports = parsing.parse_imports(source_filename)
+            with open(inspect.getfile(func), "r") as f:
+                file_source_code = f.read()
 
             if param_store in {"py", "both"}:
                 # optionally re-write function parameters with their values provided in the call
@@ -40,7 +40,8 @@ def dump(path: str | Path, param_store: Literal["py", "json", "both"] = "py") ->
 
             # remove this decorator from the source code
             source_code = parsing.remove_decorators(source_code, names={"dump"})
-            source_code = imports + "\n" + source_code
+            imports_code = parsing.parse_imports(file_source_code)
+            source_code = imports_code + "\n" + source_code
             source_code = parsing.format_code(source_code)
 
             with open(path.with_suffix(".py"), "w") as f:

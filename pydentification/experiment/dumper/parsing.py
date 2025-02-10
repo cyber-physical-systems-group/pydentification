@@ -69,14 +69,13 @@ def remove_decorators(code: str, names: set[str]) -> str:
     return ast.unparse(tree)
 
 
-def parse_imports(path: str | Path) -> str:
-    with open(path, "r") as f:
-        lines = f.readlines()
+def parse_imports(code: str) -> str:
+    tree = ast.parse(code)
 
     imports = []
-    for line in lines:
-        if line.startswith("import") or line.startswith("from"):
-            imports.append(line.strip())
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            imports.append(ast.unparse(node).strip())
 
     return "\n".join(imports)
 
