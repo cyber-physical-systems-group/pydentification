@@ -34,15 +34,17 @@ def _skip_subdir(current: Path, archive_path: Path, forbidden_paths: frozenset[s
     return False
 
 
-def save_code_snapshot(name: str, source_dir: str | Path):
+def save_code_snapshot(name: str, source_dir: str | Path, target_dir: str | Path):
     """Save only text-based files in a ZIP archive, excluding binary data files."""
-
     if isinstance(source_dir, str):
         source_dir = Path(source_dir)
 
+    if isinstance(target_dir, str):
+        target_dir = Path(target_dir)
+
     source_dir = Path(source_dir).resolve()  # ensure absolute path
-    snapshot_filename = f"source_code_{name}"
-    temp_dir = Path(f"temp_code_snapshot_{uuid.uuid4()}")  # append random UUID to avoid conflicts
+    snapshot_path = target_dir / name
+    temp_dir = target_dir / str(uuid.uuid4())  # create temp dir with unique name for copying files
 
     gitignore = _load_gitignore()
     forbidden = DEFAULT_FORBIDDEN_PREFIX | gitignore
@@ -67,5 +69,5 @@ def save_code_snapshot(name: str, source_dir: str | Path):
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file_path, dest_path)
 
-    shutil.make_archive(snapshot_filename, format="zip", root_dir=temp_dir)  # archive the directory
+    shutil.make_archive(str(snapshot_path), format="zip", root_dir=temp_dir)  # archive the directory
     shutil.rmtree(temp_dir)
