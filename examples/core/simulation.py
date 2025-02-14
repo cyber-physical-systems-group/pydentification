@@ -61,10 +61,10 @@ def model_fn():
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=50, verbose=True)
 
     timer = pl.callbacks.Timer(duration="00:04:00:00", interval="epoch")  # 4 hours
-    stopping = pl.callbacks.EarlyStopping(monitor="training/validation_loss", patience=50, mode="min", verbose=True)
+    stopping = pl.callbacks.EarlyStopping(monitor="trainer/validation_loss", patience=50, mode="min", verbose=True)
 
     path = f"models/{wandb.run.id}"
-    epoch_checkpoint = pl.callbacks.ModelCheckpoint(dirpath=path, monitor="training/validation_loss", every_n_epochs=10)
+    epoch_checkpoint = pl.callbacks.ModelCheckpoint(dirpath=path, monitor="trainer/validation_loss", every_n_epochs=10)
 
     model = LightningSimulationTrainingModule(transformer, optimizer, lr_scheduler, loss=torch.nn.MSELoss())
 

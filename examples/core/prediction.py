@@ -1,5 +1,4 @@
 # isort: skip_file
-import os
 from datetime import timedelta
 
 import lightning.pytorch as pl
@@ -9,6 +8,7 @@ import wandb
 
 from pydentification.data.datamodules.prediction import PredictionDataModule
 from pydentification.experiment.reporters import report_metrics, report_prediction_plot, report_trainable_parameters
+from pydentification.experiment.storage.models import save_lightning
 from pydentification.metrics import regression_metrics
 from pydentification.models.networks.transformer import (
     CausalDelayLineFeedforward,
@@ -19,10 +19,9 @@ from pydentification.training.lightning.prediction import LightningPredictionTra
 
 
 def input_fn(parameters: dict):
-    df = pd.read_csv("dataset.csv")  # assume dataset exists and has ~100 000 samples with 3 columns: x, y, z
-
+    data = pd.read_csv("data/lorenz.csv")  # assume dataset exists and has ~100 000 samples with 3 columns: x, y, z
     return PredictionDataModule(
-        df[["x", "y", "z"]],
+        data[["x", "y", "z"]].values,
         test_size=30_000,  # 30% assuming 100 000 sample
         batch_size=32,
         validation_size=0.1,  # 10% of the training set, which is 70% of the whole dataset
@@ -83,10 +82,10 @@ def trainer_fn(model, parameters: dict):
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=20, verbose=True)
     # callbacks for stopping the training early, with 4 hour timeout and patience of 50 epochs (with 20 for reducing LR)
     timer = pl.callbacks.Timer(duration="00:04:00:00", interval="epoch")
-    stopping = pl.callbacks.EarlyStopping(monitor="training/validation_loss", patience=50, mode="min", verbose=True)
+    stopping = pl.callbacks.EarlyStopping(monitor="trainer/validation_loss", patience=50, mode="min", verbose=True)
     # checkpointing the model every 100 epochs and every hour to single directory
-    path = f"models/{wandb.run.id}"
-    epoch_checkpoint = pl.callbacks.ModelCheckpoint(dirpath=path, monitor="validation/loss", every_n_epochs=100)
+    path = f"outputs/models/{wandb.run.id}"
+    epoch_checkpoint = pl.callbacks.ModelCheckpoint(dirpath=path, monitor="trainer/validation_loss", every_n_epochs=100)
     time_checkpoint = pl.callbacks.ModelCheckpoint(dirpath=path, train_time_interval=timedelta(hours=1))
 
     # wrap model in training class with auto-regression training defined
@@ -146,10 +145,8 @@ def run_single_experiment():
             model, trainer = train_fn(model, trainer, dm)
             report_fn(model, dm, auto_regression_scales=[16, 32, 128])  # sample of regression scales
             # store trained model and send it to W&B
-            os.makedirs(f"models/{wandb.run.id}", exist_ok=True)
-            path = f"models/{wandb.run.id}/trained-model.pt"
-            torch.save(model, path)
-            wandb.save(path)
+            save_lightning(name=wandb.run.id, model=model, method="safetensors", save_hparams=True)
+            wandb.save(wandb.run.id)
         except Exception as e:
             print(e)  # print traceback, since W&B uses multiprocessing, which can lose information about exception
             raise ValueError("Experiment failed.") from e
@@ -201,4 +198,4 @@ SWEEP_CONFIG = {
 
 if __name__ == "__main__":
     sweep_id = wandb.sweep(SWEEP_CONFIG, project="test")  # change project name
-    wandb.agent(sweep_id, function=run_single_experiment, count=10, project="test")
+    wandb.agent(sweep_id, function=run_single_experiment, count=1, project="test")
