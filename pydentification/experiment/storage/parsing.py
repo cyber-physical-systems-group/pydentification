@@ -1,7 +1,6 @@
 import ast
 import re
 import textwrap
-from pathlib import Path
 from typing import Any
 
 import autoflake

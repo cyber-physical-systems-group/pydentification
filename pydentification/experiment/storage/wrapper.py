@@ -17,6 +17,7 @@ def dump(path: str | Path | Callable[[None], str], param_store: Literal["py", "j
     :param param_store: whether to store parameters, replace values in source code python file
                         or JSON file with name to value mapping, or both
     """
+
     def prepare_path(input_path: str | Path | Callable[[None], str]) -> Path:
         """
         Prepare input path for saving the source code and parameters,
