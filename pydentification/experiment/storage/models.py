@@ -6,6 +6,8 @@ import lightning.pytorch as pl
 import torch
 from safetensors.torch import save_model
 
+from pydentification.stubs import cast_to_path
+
 
 def save_torch(path: Path, model: torch.nn.Module, method: Literal["pt", "safetensors"] = "safetensors"):
     if method == "safetensors":
@@ -21,6 +23,7 @@ def save_json(path: Path, data: dict):
         json.dump(data, f)  # type: ignore
 
 
+@cast_to_path
 def save_lightning(
     path: str | Path,
     model: pl.LightningModule,
@@ -33,10 +36,7 @@ def save_lightning(
     :param method: method of saving the model, either "pt" or "safetensors"
     :param save_hparams: whether to save hyperparameters in a JSON file
     """
-    if isinstance(path, str):
-        path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
-
     save_torch(path / f"trained-model.{method}", model=model.module, method=method)  # save only the model
 
     if save_hparams:

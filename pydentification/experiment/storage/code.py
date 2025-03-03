@@ -3,6 +3,8 @@ import shutil
 import uuid
 from pathlib import Path
 
+from pydentification.stubs import cast_to_path
+
 
 def _load_gitignore() -> set[str]:
     """Load .gitignore from default name and root directory as set"""
@@ -31,6 +33,7 @@ def _skip_subdir(current: Path, archive_path: Path, forbidden_paths: set[str]) -
     return False
 
 
+@cast_to_path
 def save_code_snapshot(
     name: str,
     source_dir: str | Path,
@@ -49,12 +52,6 @@ def save_code_snapshot(
     :param accept_suffix: set of suffixes to include in the archive
     :param use_gitignore: whether to use .gitignore file in the source directory for filter_prefix
     """
-    if isinstance(source_dir, str):
-        source_dir = Path(source_dir)
-
-    if isinstance(target_dir, str):
-        target_dir = Path(target_dir)
-
     source_dir = Path(source_dir).resolve()  # ensure absolute path
     snapshot_path = target_dir / name
     temp_dir = target_dir / str(uuid.uuid4())  # create temp dir with unique name for copying files
