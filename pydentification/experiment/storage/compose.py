@@ -7,6 +7,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, Callable
 
+from pydentification.stubs import cast_to_path
+
 
 class ReplaceSourceCode:
     """
@@ -55,6 +57,7 @@ def _load_model_and_parameters(path: str | Path, name: str, parameters: dict[str
     return model_fn(**parameters)
 
 
+@cast_to_path
 def compose_model(
     path: str | Path,
     name: str = "model_fn",
@@ -71,9 +74,6 @@ def compose_model(
     :param source: filesystem Path to the ZIP file with source code
                    if None imports are attempted from the current working directory.
     """
-    if isinstance(source, str):
-        source = Path(source)
-
     if parameters is not None:
         with open(parameters, "r") as f:
             parameters = json.load(f)
