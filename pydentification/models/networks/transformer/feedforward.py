@@ -87,11 +87,13 @@ class CausalDelayLineFeedforward(nn.Module):
         return outputs
 
 
-class TransformerFeedforward(torch.nn.Module):
+class PointWiseFeedforward(torch.nn.Module):
     """
     This module contains feedforward network in transformer style for dynamical systems. It uses two fully connected
-    layers with activation function between them, but instead of applying them point-wise, like in classical
-    transformers, it uses the delay-line in both of them to apply different weights for each time step.
+    layers with activation function between them. This is the same as regular feedforward network in transformer, with
+    interface aligned with other feedforward layers in this module.
+
+    This module is always causal, because it applies the same network to all time steps.
     """
 
     def __init__(
@@ -111,7 +113,7 @@ class TransformerFeedforward(torch.nn.Module):
         :param bias: if True bias will be added to the linear module
         :param skip_connection: if True skip connection will be added to the output
         """
-        super(TransformerFeedforward, self).__init__()
+        super(PointWiseFeedforward, self).__init__()
 
         self.n_time_steps = n_time_steps
         self.n_state_variables = n_state_variables
@@ -119,28 +121,23 @@ class TransformerFeedforward(torch.nn.Module):
         self.bias = bias
         self.skip_connection = skip_connection
 
-        self.flatten = nn.Flatten()
         self.activation = activation
-
         self.up_projection = nn.Linear(
-            in_features=self.n_state_variables * self.n_time_steps,  # variables and time-steps are flattened into one
-            out_features=self.hidden_dimension,  # hidden dimension contains mixed state variables and time-steps
+            in_features=self.n_state_variables,
+            out_features=self.hidden_dimension,
             bias=self.bias,
         )
 
         self.down_projection = nn.Linear(
             in_features=self.hidden_dimension,
-            # output will be reshaped to variables and time-steps
-            out_features=self.n_state_variables * self.n_time_steps,
+            out_features=self.n_state_variables,
             bias=self.bias,
         )
 
     def forward(self, inputs: Tensor) -> Tensor:
-        variables = self.flatten(inputs)  # flatten time steps
-        variables = self.up_projection(variables)
+        variables = self.up_projection(inputs)
         variables = self.activation(variables)
-        variables = self.down_projection(variables)
-        outputs = torch.reshape(variables, shape=inputs.shape)
+        outputs = self.down_projection(variables)
 
         if self.skip_connection:
             outputs = inputs + outputs
