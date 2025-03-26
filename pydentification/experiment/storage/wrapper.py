@@ -4,7 +4,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Callable, Literal
 
-from pydentification.experiment.dumper import parsing
+from pydentification.experiment.storage import parsing
 
 
 def dump(path: str | Path | Callable[[None], str], param_store: Literal["py", "json", "both"] = "py") -> Callable:
