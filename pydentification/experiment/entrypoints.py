@@ -1,12 +1,28 @@
 import logging
+import os
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 import wandb
 import yaml
 
+from ..stubs import cast_to_path
 from .context import RuntimeContext
 from .parameters import left_dict_join, prepare_config_for_sweep
+from .storage.code import save_code_snapshot
+
+
+@cast_to_path
+def create_code_snapshot(output_dir_name: str | Path, experiment_config: dict[str, Any]):
+    """
+    Creates the code snapshot for the experiment using experiment config file `storage` key.
+    Uses shared output directory for all experiments and list of source code directories from settings.
+    """
+    for settings in experiment_config["storage"].get("source_code", []):  # skip if key not present
+        os.makedirs(settings["target_dir"], exist_ok=True)
+        target_path = output_dir_name / settings["target_dir"]
+        save_code_snapshot(name=settings["name"], source_dir=settings["source_dir"], target_dir=target_path)
 
 
 def run_training(
@@ -33,7 +49,7 @@ def run_training(
         model, trainer = runtime.model_fn(project_name, training_config, model_config, checkpoint_path)
         model, trainer = runtime.train_fn(model, trainer, dm, checkpoint_path)
         runtime.report_fn(model, trainer, dm)
-        runtime.save_fn(wandb.run.id, model)
+        runtime.save_fn(runtime.output_dir_name_fn(), model)
 
     except Exception as e:
         logging.exception(e)  # log traceback, W&B can sometimes lose information
@@ -45,7 +61,8 @@ def run_sweep_step(
 ):
     with wandb.init(reinit=True):
         wandb.mark_preempting()
-        parameters = wandb.config  # dynamically generated model settings by W&B sweep
+        parameters = dict(wandb.config)  # dynamically generated model settings by W&B sweep
+        create_code_snapshot(runtime.output_dir_name_fn(), experiment_config)
 
         run_training(
             runtime=runtime,
@@ -82,6 +99,8 @@ def run(data: str, experiment: str, resume: str, runtime: RuntimeContext):
     with wandb.init(project=project, name=name, resume=resume, id=run_id):
         model_config = experiment_config["model"]
         training_config = experiment_config["training"]
+
+        create_code_snapshot(runtime.output_dir_name_fn(), experiment_config)
 
         run_training(
             runtime=runtime,

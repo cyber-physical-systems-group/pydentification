@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 import lightning.pytorch as pl
@@ -11,6 +12,12 @@ class RuntimeContext(ABC):
 
     The interface can be implemented as module or namespace
     """
+
+    @staticmethod
+    @abstractmethod
+    def output_dir_name_fn(self) -> str | Path:
+        """Simple property with the name of output directory (ex. /outputs/{wandb.run.id}/)"""
+        ...
 
     @staticmethod
     @abstractmethod
