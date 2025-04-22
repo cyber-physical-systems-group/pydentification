@@ -33,12 +33,17 @@ class RuntimeContext(ABC):
     @staticmethod
     @abstractmethod
     def model_fn(
-        name: str, config: dict[str, Any], parameters: dict[str, Any], checkpoint_path: str | None = None
+        name: str,
+        config: dict[str, Any],
+        parameters: dict[str, Any],
+        compute: dict[str, Any],
+        checkpoint_path: str | None = None,
     ) -> tuple[pl.LightningModule, pl.Trainer]:
         """
         :param name: name of the W&B project, will be used for logging with callbacks
         :param config: static configuration, for example timeout, validation-size etc.
         :param parameters: dynamic experiment configuration, for example model settings or batch-size
+        :param compute: static compute configuration, for example accelerator, devices etc.
         :param checkpoint_path: path to checkpoint for resuming training, can be None
         """
         ...
@@ -70,9 +75,10 @@ class RuntimeContext(ABC):
 
     @staticmethod
     @abstractmethod
-    def save_fn(name: str, model: pl.LightningModule):
+    def save_fn(name: str, model: pl.LightningModule, config: dict[str, Any] | None = None):
         """
         :param name: name of the run, returned from wandb.run.id or config
         :param model: trained LightningModule instance to be saved, returned from train_fn
+        :param config: static storage configuration for models
         """
         ...
