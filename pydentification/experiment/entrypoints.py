@@ -51,7 +51,7 @@ def run_training(
         model, trainer = runtime.model_fn(project_name, training_config, model_config, compute_config, checkpoint_path)
         model, trainer = runtime.train_fn(model, trainer, dm, checkpoint_path)
         runtime.report_fn(model, trainer, dm)
-        runtime.save_fn(runtime.output_dir_name_fn(), model)
+        runtime.save_fn(runtime.output_dir_name_fn(), model, compute_config)
 
     except Exception as e:
         logging.exception(e)  # log traceback, W&B can sometimes lose information
@@ -100,7 +100,7 @@ def run(data_config: dict, experiment_config: dict, compute_config: dict, resume
         model_config = experiment_config["model"]
         training_config = experiment_config["training"]
 
-        create_code_snapshot(runtime.output_dir_name_fn(), experiment_config)
+        create_code_snapshot(runtime.output_dir_name_fn(), compute_config)
 
         run_training(
             runtime=runtime,
