@@ -1,4 +1,3 @@
-from functools import cached_property
 from typing import Literal
 
 import torch
@@ -37,8 +36,10 @@ class RFFTModule(Module):
 
         self.requires_grad_(False)
 
-    @cached_property
-    def fft_matrix(self) -> Tensor:
+        if self.implementation == "matmul":
+            self.register_buffer("fft_matrix", self.build_fft_matrix())
+
+    def build_fft_matrix(self) -> Tensor:
         """Precompute FFT matrix for matmul implementation."""
         return torch.fft.fft2(torch.eye(self.n_input_time_steps, dtype=self.dtype))
 
@@ -81,8 +82,10 @@ class IRFFTModule(Module):
 
         self.requires_grad_(False)
 
-    @cached_property
-    def ifft_matrix(self) -> Tensor:
+        if self.implementation == "matmul":
+            self.register_buffer("ifft_matrix", self.build_ifft_matrix())
+
+    def build_ifft_matrix(self) -> Tensor:
         """Precompute FFT matrix for matmul implementation."""
         return torch.fft.ifft2(torch.eye(self.n_time_steps, dtype=self.dtype))
 
