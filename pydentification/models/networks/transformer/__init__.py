@@ -1,6 +1,7 @@
 from .block import DynamicalSelfAttentionBlock
 from .embedding import ConstantLengthEmbedding, ShorteningCausalEmbedding
-from .feedforward import CausalDelayLineFeedforward, DelayLineFeedforward, MaskedLinear, TransformerFeedforward
+from .encoding import PositionalEncoding
+from .feedforward import CausalDelayLineFeedforward, DelayLineFeedforward, MaskedLinear, PointWiseFeedforward
 from .linear import LinearProjection
 from .self_attention import DynamicalSelfAttention
 
@@ -11,7 +12,8 @@ __all__ = [
     "DynamicalSelfAttention",
     "LinearProjection",
     "ShorteningCausalEmbedding",
-    "TransformerFeedforward",
+    "PositionalEncoding",
+    "PointWiseFeedforward",
     "MaskedLinear",
     "CausalDelayLineFeedforward",
 ]

@@ -36,9 +36,10 @@ def test_masked_linear_causality(kwargs: dict[str, Any], shape: tuple, change_st
         # change at given time step to two
         changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
 
-        # check that the change is only at the given time step
+        # checks, if elements before the timestep with changed element are equal
         assert torch.allclose(reference[:, :change_step], changed[:, :change_step])
-        # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
+        # check, if elements after the timestep are different
+        # if the weights are initialized to zero, this will fail -> extremely unlikely and controlled by random_seed
         assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
 
 
@@ -72,9 +73,10 @@ def test_masked_delay_line_causality(kwargs: dict[str, Any], shape: tuple, chang
         # change at given time step to two
         changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
 
-        # check that the change is only at the given time step
+        # checks, if elements before the timestep with changed element are equal
         assert torch.allclose(reference[:, :change_step], changed[:, :change_step])
-        # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
+        # check, if elements after the timestep are different
+        # if the weights are initialized to zero, this will fail -> extremely unlikely and controlled by random_seed
         assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
 
 
@@ -116,9 +118,47 @@ def test_masked_self_attention_causality(kwargs: dict[str, Any], shape: tuple, c
         # change at given time step to two
         changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
 
-        # check that the change is only at the given time step
+        # checks, if elements before the timestep with changed element are equal
         assert torch.allclose(reference[:, :change_step], changed[:, :change_step])
-        # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
+        # check, if elements after the timestep are different
+        # if the weights are initialized to zero, this will fail -> extremely unlikely and controlled by random_seed
+        assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
+
+
+@pytest.mark.parametrize(
+    ["kwargs", "shape", "change_step"],
+    (
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 1
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4}, (1, 10, 1), 5),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4, "bias": False}, (1, 10, 1), 5),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4, "skip_connection": True}, (1, 10, 1), 5),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4}, (5, 10, 1), 5),  # with higher batch size
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 5
+        ({"n_time_steps": 10, "n_state_variables": 5, "hidden_dimension": 20}, (1, 10, 5), 5),
+        ({"n_time_steps": 10, "n_state_variables": 5, "hidden_dimension": 20, "bias": False}, (1, 10, 5), 5),
+        ({"n_time_steps": 10, "n_state_variables": 5, "hidden_dimension": 20, "skip_connection": True}, (1, 10, 5), 5),
+        ({"n_time_steps": 10, "n_state_variables": 5, "hidden_dimension": 20}, (5, 10, 5), 5),  # with higher batch size
+        # batch_size = 1, n_time_steps = 10, n_state_variables = 5
+        # change input early
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4}, (1, 10, 1), 1),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4, "bias": False}, (1, 10, 1), 1),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4, "skip_connection": True}, (1, 10, 1), 1),
+        ({"n_time_steps": 10, "n_state_variables": 1, "hidden_dimension": 4}, (5, 10, 1), 1),  # with higher batch size
+    ),
+)
+def test_point_wise_feedforward_causality(kwargs: dict[str, Any], shape: tuple, change_step: int):
+    torch.manual_seed(42)  # needed for second assert
+    module = transformer.PointWiseFeedforward(**kwargs)
+
+    with torch.no_grad():
+        reference = module(torch.ones(shape))  # type: ignore
+        # change at given time step to two
+        changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
+
+        # checks, if elements before the timestep with changed element are equal
+        assert torch.allclose(reference[:, :change_step], changed[:, :change_step])
+        # check, if elements after the timestep are different
+        # if the weights are initialized to zero, this will fail -> extremely unlikely and controlled by random_seed
         assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
 
 
@@ -153,7 +193,9 @@ def test_delay_line_causality(kwargs: dict[str, Any], shape: tuple, change_step:
         # change at given time step to two
         changed = module(change_time_series_signal(torch.ones(shape), change_step=change_step, value=2.0))
 
-        # check that the change is only at the given time step
         assert not torch.allclose(reference[:, :change_step], changed[:, :change_step])
-        # this partly relies on initialization, if weight for some connection is close to zero (random seed used)
+        assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
+
+        # this module is non-causal, so changing single timestep might impact previous time-steps
+        assert not torch.allclose(reference[:, :change_step], changed[:, :change_step])
         assert not torch.allclose(reference[:, change_step:], changed[:, change_step:])
